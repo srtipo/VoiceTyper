@@ -1,0 +1,46 @@
+# Build outputs
+bin/
+obj/
+*.dll
+*.exe
+*.pdb
+*.user
+*.suo
+*.userosscache
+*.sln.docstates
+*.userprefs
+[Dd]ebug/
+[Rr]elease/
+x64/
+x86/
+[Aa][Rr][Mm]/
+[Aa][Rr][Mm]64/
+bld/
+[Bb]uild[Ll]og.*
+*.[Pp]ublish.xml
+*.pidb
+*.publishsettings
+.vs/
+.vscode/
+.idea/
+
+# NuGet
+*.nupkg
+**/*.nupkg
+**/*.snupkg
+.nuget/
+packages/
+
+# ResX
+*.resx
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Whisper model binaries (NO ignorar models/ desnudo: rompería el tracking
+# de src/VoiceTyper/Models/RecordingState.cs en FS case-insensitive de Windows)
+models/*.bin
+*.ggml
+ggml-*.bin
+whisper-*.bin

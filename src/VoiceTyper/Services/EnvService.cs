@@ -23,6 +23,8 @@ public static class Env
     public static string? ModelDir { get; private set; }
     public static string? LogDir { get; private set; }
     public static string? WorkDir { get; private set; }
+    public static string OpenAIApiKey { get; private set; } = "";
+    public static string GroqApiKey { get; private set; } = "";
 
     public static IReadOnlyDictionary<string, string> All
     {
@@ -113,6 +115,8 @@ public static class Env
         ModelDir = EmptyToNull(Get("VT_MODEL_DIR"));
         LogDir = EmptyToNull(Get("VT_LOG_DIR"));
         WorkDir = EmptyToNull(Get("VT_WORK_DIR"));
+        OpenAIApiKey = GetOrDefault("VT_OPENAI_API_KEY", OpenAIApiKey);
+        GroqApiKey = GetOrDefault("VT_GROQ_API_KEY", GroqApiKey);
     }
 
     private static string GetOrDefault(string key, string fallback)

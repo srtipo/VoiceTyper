@@ -1,41 +1,39 @@
-## IDE / OS
-.vs/
-.vscode/
-.idea/
-*.user
-*.suo
-*.userprefs
-Thumbs.db
-.DS_Store
-desktop.ini
-*.swp
-
-## .NET
-bin/
-obj/
-out/
-*.user
-*.suo
-
-## Publish
-publish/
-*.pubxml
-
-## Logs
-*.log
-logs/
-
-## Secrets y config local — NUNCA commitear
+# Local environment overrides
 .env
 .env.local
 .env.*.local
 *.env
 !.env.example
 
-## Modelos Whisper (binarios grandes descargados aparte, no van al repo)
-models/
-**/models/
-*.bin
-*.ggml
-**/ggml-*.bin
-**/whisper-*.bin
+# IDE
+.vs/
+.vscode/
+.idea/
+*.user
+*.suo
+*.userprefs
+*.swp
+
+# Build artifacts (también cubiertos por src/.gitignore)
+bin/
+obj/
+out/
+
+# Publish
+publish/
+*.pubxml
+
+# Logs
+*.log
+logs/
+
+# OS junk
+Thumbs.db
+.DS_Store
+desktop.ini
+
+# Importante: NO ignorar `models/` ni `Models/` desnudos.
+# Los binarios del modelo Whisper se filtran con patrones específicos en
+# src/.gitignore (ver sección "Whisper model binaries" de ese archivo).
+# Reglas blanket romperían el tracking de src/VoiceTyper/Models/RecordingState.cs
+# en el filesystem case-insensitive de Windows.
