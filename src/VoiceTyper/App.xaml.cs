@@ -2,6 +2,7 @@
 using System.Windows;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
+using VoiceTyper.Native;
 using VoiceTyper.Services;
 
 namespace VoiceTyper;
@@ -30,10 +31,13 @@ public partial class App : Application
             {
                 services.AddSingleton<TrayIconService>();
                 services.AddSingleton<MainWindow>();
+                services.AddSingleton<LowLevelKeyboardHook>();
+                services.AddSingleton<HotkeyService>();
             })
             .Build();
 
         _host.Services.GetRequiredService<TrayIconService>();
+        _host.Services.GetRequiredService<HotkeyService>().Start();
     }
 
     protected override void OnExit(ExitEventArgs e)
