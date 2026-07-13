@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.ComponentModel;
 using System.Runtime.InteropServices;
 using System.Threading;
+using VoiceTyper.Services;
 
 namespace VoiceTyper.Native;
 
@@ -13,9 +14,12 @@ public sealed class LowLevelKeyboardHook : IDisposable
     private const int WM_KEYUP = 0x0101;
     private const int WM_SYSKEYDOWN = 0x0104;
     private const int WM_SYSKEYUP = 0x0105;
+    private const int WM_QUIT = 0x0012;
     private const int HC_ACTION = 0;
+    private const uint PM_REMOVE = 0x0001;
 
     private IntPtr _hookId = IntPtr.Zero;
+    private uint _hookThreadId;
     private LowLevelKeyboardProc? _proc;
     private readonly HashSet<VirtualKey> _downKeys = new();
     private Thread? _hookThread;
@@ -35,6 +39,7 @@ public sealed class LowLevelKeyboardHook : IDisposable
         if (IsInstalled) return;
         if (_disposed) throw new ObjectDisposedException(nameof(LowLevelKeyboardHook));
 
+        Log.Info("[Hook] installing");
         _installError = null;
         _installedSignal.Reset();
 
@@ -47,16 +52,24 @@ public sealed class LowLevelKeyboardHook : IDisposable
 
         if (!_installedSignal.Wait(TimeSpan.FromSeconds(5)))
         {
+            Log.Error("[Hook] install timed out after 5s");
             throw new TimeoutException("Keyboard hook installation timed out");
         }
 
-        if (_installError != null) throw _installError;
+        if (_installError != null)
+        {
+            Log.Error($"[Hook] install failed: {_installError.Message}");
+            throw _installError;
+        }
+
+        Log.Info("[Hook] installed");
     }
 
     private void HookThreadProc()
     {
         try
         {
+            _hookThreadId = GetCurrentThreadId();
             var hMod = GetModuleHandle(null);
             _proc = HookProc;
             _hookId = SetWindowsHookEx(WH_KEYBOARD_LL, _proc, hMod, 0);
@@ -71,7 +84,14 @@ public sealed class LowLevelKeyboardHook : IDisposable
 
             while (_hookId != IntPtr.Zero)
             {
-                Thread.Sleep(100);
+                if (PeekMessage(out var msg, IntPtr.Zero, 0, 0, PM_REMOVE))
+                {
+                    if (msg.message == WM_QUIT) break;
+                }
+                else
+                {
+                    Thread.Sleep(10);
+                }
             }
         }
         catch (Exception ex)
@@ -85,8 +105,10 @@ public sealed class LowLevelKeyboardHook : IDisposable
     {
         if (!IsInstalled) return;
 
+        Log.Info("[Hook] uninstalling");
         var hookId = _hookId;
         _hookId = IntPtr.Zero;
+        PostThreadMessage(_hookThreadId, WM_QUIT, IntPtr.Zero, IntPtr.Zero);
         UnhookWindowsHookEx(hookId);
         _hookThread?.Join(TimeSpan.FromSeconds(2));
         _hookThread = null;
@@ -156,6 +178,19 @@ public sealed class LowLevelKeyboardHook : IDisposable
         public IntPtr dwExtraInfo;
     }
 
+    [StructLayout(LayoutKind.Sequential)]
+    private struct MSG
+    {
+        public IntPtr hwnd;
+        public uint message;
+        public IntPtr wParam;
+        public IntPtr lParam;
+        public uint time;
+        public int pt_x;
+        public int pt_y;
+        public uint lPrivate;
+    }
+
     [DllImport("user32.dll", SetLastError = true)]
     private static extern IntPtr SetWindowsHookEx(int idHook, LowLevelKeyboardProc lpfn, IntPtr hMod, uint dwThreadId);
 
@@ -171,4 +206,15 @@ public sealed class LowLevelKeyboardHook : IDisposable
 
     [DllImport("kernel32.dll", CharSet = CharSet.Unicode, SetLastError = true)]
     private static extern IntPtr GetModuleHandle(string? lpModuleName);
+
+    [DllImport("kernel32.dll")]
+    private static extern uint GetCurrentThreadId();
+
+    [DllImport("user32.dll")]
+    [return: MarshalAs(UnmanagedType.Bool)]
+    private static extern bool PeekMessage(out MSG lpMsg, IntPtr hWnd, uint min, uint max, uint removeMsg);
+
+    [DllImport("user32.dll")]
+    [return: MarshalAs(UnmanagedType.Bool)]
+    private static extern bool PostThreadMessage(uint idThread, uint msg, IntPtr wParam, IntPtr lParam);
 }

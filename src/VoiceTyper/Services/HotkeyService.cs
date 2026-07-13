@@ -1,5 +1,4 @@
 using System;
-using System.Diagnostics;
 using System.Runtime.InteropServices;
 using System.Threading;
 using System.Threading.Tasks;
@@ -36,6 +35,7 @@ public sealed class HotkeyService : IDisposable
         if (_disposed) throw new ObjectDisposedException(nameof(HotkeyService));
         if (_loopsCts is not null) return;
 
+        Log.Info("[Hotkey] starting");
         _hook.KeyDown += OnHookKeyDown;
         _hook.KeyUp += OnHookKeyUp;
         _hook.Install();
@@ -49,6 +49,7 @@ public sealed class HotkeyService : IDisposable
     {
         if (_loopsCts is null) return;
 
+        Log.Info("[Hotkey] stopping");
         _hook.KeyDown -= OnHookKeyDown;
         _hook.KeyUp -= OnHookKeyUp;
         _hook.Uninstall();
@@ -70,21 +71,13 @@ public sealed class HotkeyService : IDisposable
     private void OnHookKeyDown(VirtualKey vk)
     {
         if (vk != Trigger) return;
-
-        if (IsRecording)
-        {
-            Debug.WriteLine("[Hotkey] autorepeat ignored");
-            Console.WriteLine("[Hotkey] autorepeat ignored");
-            return;
-        }
-
+        if (IsRecording) return;
         if (!LowLevelKeyboardHook.IsKeyPressed((ushort)Modifier)) return;
 
         IsRecording = true;
         _currentTcs = new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously);
         _hook.ConsumeNextKeyDown = true;
-        Debug.WriteLine("[Hotkey] KeyDown Space, recording=true");
-        Console.WriteLine("[Hotkey] KeyDown Space, recording=true");
+        Log.Info("[Hotkey] recording started");
         RecordingStarted?.Invoke();
     }
 
@@ -97,8 +90,7 @@ public sealed class HotkeyService : IDisposable
         RecordingStopped?.Invoke();
         _currentTcs?.TrySetResult(true);
         _currentTcs = null;
-        Debug.WriteLine("[Hotkey] KeyUp Space, recording=false");
-        Console.WriteLine("[Hotkey] KeyUp Space, recording=false");
+        Log.Info("[Hotkey] recording stopped");
     }
 
     private async Task ConsumeLoopAsync(CancellationToken ct)
@@ -130,13 +122,11 @@ public sealed class HotkeyService : IDisposable
                     _hook.IsPaused = isFullscreen;
                     if (isFullscreen)
                     {
-                        Debug.WriteLine("[Hotkey] paused");
-                        Console.WriteLine("[Hotkey] paused");
+                        Log.Info("[Hotkey] paused (fullscreen detected)");
                     }
                     else
                     {
-                        Debug.WriteLine("[Hotkey] resumed");
-                        Console.WriteLine("[Hotkey] resumed");
+                        Log.Info("[Hotkey] resumed (no longer fullscreen)");
                     }
                     wasFullscreen = isFullscreen;
                 }
