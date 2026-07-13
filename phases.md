@@ -19,9 +19,17 @@ No avanzar a la siguiente fase hasta que la actual esté ✅ completa.
   ```
 - [ ] Crear `README.md` placeholder con descripción del proyecto.
 - [ ] Crear `src\.gitignore` para .NET.
+- [ ] **Inicializar git** en la raíz del proyecto.
+- [ ] **Crear `\.env.example`** en la raíz documentando todas las vars soportadas.
+- [ ] **Configurar `\.gitignore`** en la raíz para ignorar `.env` (pero NO `.env.example`).
+- [ ] **Crear `src\VoiceTyper\Services\EnvService.cs`** con loader minimalista.
+- [ ] **Wire `Env.Load()` en `App.OnStartup`** antes de construir el Host.
 
 ### Verificación
 - [ ] `Test-Path C:\Users\victor\proyectos\VoiceTyper\src` → `True`.
+- [ ] `git status` no muestra `.env` (aunque exista en disco).
+- [ ] `git status` muestra `.env.example` como tracked.
+- [ ] App arranca con y sin `.env` presente, sin crashear.
 
 ---
 
@@ -158,7 +166,7 @@ No avanzar a la siguiente fase hasta que la actual esté ✅ completa.
   - [ ] `string GetDownloadUrl()` → URL de HuggingFace (`ggerganov/whisper.cpp`).
   - [ ] `long GetApproxSizeBytes()`.
 - [ ] Crear `Services\ModelManagerService.cs`:
-  - [ ] Carpeta `%AppData%\VoiceTyper\models\`.
+  - [ ] Carpeta default desde `Env.ModelDir`, con fallback a `%LOCALAPPDATA%\VoiceTyper\models\`.
   - [ ] `EnsureModelAsync(WhisperModel)`: si no existe, descargar con
     `HttpClient` mostrando progreso (vía `IProgress<double>`).
   - [ ] Cancelable: `CancellationToken` en signature.
@@ -174,6 +182,7 @@ No avanzar a la siguiente fase hasta que la actual esté ✅ completa.
   - [ ] Carga/guarda `%AppData%\VoiceTyper\settings.json`.
   - [ ] Modelo `AppSettings { Model, Language, HotkeyModifier, HotkeyTrigger,
     AutoStart, PauseOnFullscreen, MicrophoneDeviceIndex }`.
+  - [ ] **Cascada de defaults**: `Env` → `settings.json` → defaults del código.
   - [ ] Settings default razonables.
 - [ ] En `RecordingOrchestrator`, después de capturar audio:
   - [ ] `TrayIconService.SetState(Processing)`.
@@ -194,6 +203,7 @@ No avanzar a la siguiente fase hasta que la actual esté ✅ completa.
 - [ ] Decir una frase larga (20+ segundos). Transcripción aparece en < 5s.
 - [ ] Si el modelo falla en cargar (archivo corrupto): log de error, no crashea.
 - [ ] Verificar `%AppData%\VoiceTyper\models\ggml-small.bin` existe.
+- [ ] Crear `.env` con `VT_MODEL_DIR=ruta\custom` y verificar que se usa esa carpeta.
 
 ---
 

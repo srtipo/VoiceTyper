@@ -1,4 +1,4 @@
-## IDE / OS a nivel raíz
+## IDE / OS
 .vs/
 .vscode/
 .idea/
@@ -8,12 +8,34 @@
 Thumbs.db
 .DS_Store
 desktop.ini
+*.swp
+
+## .NET
+bin/
+obj/
+out/
+*.user
+*.suo
+
+## Publish
+publish/
+*.pubxml
 
 ## Logs
 *.log
 logs/
 
-## Publish
-publish/
-out/
-*.pubxml
+## Secrets y config local — NUNCA commitear
+.env
+.env.local
+.env.*.local
+*.env
+!.env.example
+
+## Modelos Whisper (binarios grandes descargados aparte, no van al repo)
+models/
+**/models/
+*.bin
+*.ggml
+**/ggml-*.bin
+**/whisper-*.bin

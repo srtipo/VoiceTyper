@@ -16,6 +16,8 @@ public partial class App : Application
     {
         base.OnStartup(e);
 
+        Env.Load();
+
         _singleInstanceMutex = new Mutex(initiallyOwned: true, SingleInstanceMutexName, out var createdNew);
         if (!createdNew)
         {

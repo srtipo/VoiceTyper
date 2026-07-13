@@ -196,3 +196,41 @@ C:\Users\victor\proyectos\VoiceTyper\
 - [ ] Auto-start con Windows funciona tras activarlo.
 - [ ] Sin tráfico de red tras descarga inicial del modelo.
 - [ ] Apagado limpio vía menú "Salir" (sin procesos zombi).
+
+## 11. Configuración y secretos
+
+Este es un proyecto público: cualquier secreto o path personal en el código
+queda expuesto para siempre. Toda la configuración opcional se canaliza
+vía `.env` y está excluida del repo.
+
+### 11.1 Precedencia de configuración (mayor a menor)
+1. **Variable de entorno del sistema** — para CI, Docker o override global.
+2. **Archivo `.env`** junto al ejecutable (`VoiceTyper.exe/.env`) — overrides por usuario.
+3. **`settings.json`** en `%LOCALAPPDATA%\VoiceTyper\` — preferencias persistentes editables desde la UI.
+4. **Defaults hardcodeados** en el código — último recurso, nunca contienen secrets.
+
+### 11.2 Reglas para el proyecto público
+- **Nunca** commitear secrets, API keys, tokens, ni paths personales.
+- Toda configuración opcional se documenta en `.env.example` en la raíz del repo.
+- El archivo `.env` real está en `.gitignore` desde el inicio.
+- `EnvService` carga `.env` solo en runtime, nunca persiste los valores.
+- `LoggerService` filtra automáticamente valores de vars que terminan en `_KEY`, `_SECRET`, `_TOKEN`, `_PASSWORD`.
+- `EnvService` no loguea los valores, solo registra que las vars fueron leídas.
+
+### 11.3 Variables de entorno reconocidas
+
+| Variable | Default | Propósito |
+|---|---|---|
+| `VT_LANGUAGE` | `es` | Idioma de transcripción (`es`, `en`, `pt`, `fr`, `auto`) |
+| `VT_MODEL` | `small` | Modelo Whisper default (`tiny`, `base`, `small`, `medium`) |
+| `VT_MODEL_DIR` | `%LOCALAPPDATA%\VoiceTyper\models` | Carpeta de modelos |
+| `VT_LOG_LEVEL` | `Information` | Nivel mínimo de log |
+| `VT_LOG_DIR` | `%LOCALAPPDATA%\VoiceTyper\logs` | Carpeta de logs |
+| `VT_WORK_DIR` | _(vacío)_ | Solo para debug |
+| `VT_OPENAI_API_KEY` | _(vacío)_ | Reservado para futuro fallback cloud |
+| `VT_GROQ_API_KEY` | _(vacío)_ | Reservado para futuro fallback cloud |
+
+### 11.4 Implementación
+- `src\VoiceTyper\Services\EnvService.cs` — clase estática `Env` con `Load()`, `Get(key)`, y properties tipadas.
+- Loader minimalista (~80 líneas), sin dependencias externas.
+- Llamar `Env.Load()` una sola vez en `App.OnStartup` antes de construir el `Host`.
