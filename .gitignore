@@ -1,0 +1,19 @@
+## IDE / OS a nivel raíz
+.vs/
+.vscode/
+.idea/
+*.user
+*.suo
+*.userprefs
+Thumbs.db
+.DS_Store
+desktop.ini
+
+## Logs
+*.log
+logs/
+
+## Publish
+publish/
+out/
+*.pubxml
