@@ -33,11 +33,14 @@ public partial class App : Application
                 services.AddSingleton<MainWindow>();
                 services.AddSingleton<LowLevelKeyboardHook>();
                 services.AddSingleton<HotkeyService>();
+                services.AddSingleton<AudioRecorderService>();
+                services.AddSingleton<RecordingOrchestrator>();
             })
             .Build();
 
         _host.Services.GetRequiredService<TrayIconService>();
         _host.Services.GetRequiredService<HotkeyService>().Start();
+        _host.Services.GetRequiredService<RecordingOrchestrator>();
     }
 
     protected override void OnExit(ExitEventArgs e)
