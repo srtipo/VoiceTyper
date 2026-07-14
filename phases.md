@@ -155,55 +155,55 @@ No avanzar a la siguiente fase hasta que la actual esté ✅ completa.
 
 ---
 
-## Fase 4 — Whisper.net: descarga del modelo y transcripción
+## Fase 4 — Whisper.net: descarga del modelo y transcripción ✅
 **Objetivo:** el byte[] se convierte a texto en español.
 
 ### Tareas
-- [ ] Agregar NuGet `Whisper.net` y `Whisper.net.Runtime` (CPU).
-- [ ] Crear `Models\WhisperModel.cs`:
-  - [ ] `enum WhisperModel { Tiny, Base, Small, Medium }`
-  - [ ] `string GetFileName()` → `ggml-{name}.bin`
-  - [ ] `string GetDownloadUrl()` → URL de HuggingFace (`ggerganov/whisper.cpp`).
-  - [ ] `long GetApproxSizeBytes()`.
-- [ ] Crear `Services\ModelManagerService.cs`:
-  - [ ] Carpeta default desde `Env.ModelDir`, con fallback a `%LOCALAPPDATA%\VoiceTyper\models\`.
-  - [ ] `EnsureModelAsync(WhisperModel)`: si no existe, descargar con
+- [x] Agregar NuGet `Whisper.net` y `Whisper.net.Runtime` (CPU).
+- [x] Crear `Models\WhisperModel.cs`:
+  - [x] `enum WhisperModel { Tiny, Base, Small, Medium }`
+  - [x] `string GetFileName()` → `ggml-{name}.bin`
+  - [x] `string GetDownloadUrl()` → URL de HuggingFace (`ggerganov/whisper.cpp`).
+  - [x] `long GetApproxSizeBytes()`.
+- [x] Crear `Services\ModelManagerService.cs`:
+  - [x] Carpeta default desde `Env.ModelDir`, con fallback a `%LOCALAPPDATA%\VoiceTyper\models\`.
+  - [x] `EnsureModelAsync(WhisperModel)`: si no existe, descargar con
     `HttpClient` mostrando progreso (vía `IProgress<double>`).
-  - [ ] Cancelable: `CancellationToken` en signature.
-- [ ] Crear `Services\TranscriberService.cs`:
-  - [ ] Lazy init del `WhisperFactory` y `WhisperProcessor` con el modelo cargado
+  - [x] Cancelable: `CancellationToken` en signature.
+- [x] Crear `Services\TranscriberService.cs`:
+  - [x] Lazy init del `WhisperFactory` y `WhisperProcessor` con el modelo cargado
     una sola vez (singleton).
-  - [ ] `Task<string> TranscribeAsync(byte[] wavBytes, string language = "es", CancellationToken ct)`
-  - [ ] Usa `WhisperProcessor.ProcessAsync(buffer, CancellationToken.None)`.
-  - [ ] Configuración: `WhisperProcessorBuilder.WithLanguage(language).WithGreedySamplingStrategy().Build()`.
-  - [ ] Devuelve el texto concatenando los segments (trim, sin prefijos como "[BLANK_AUDIO]").
-  - [ ] `Dispose` adecuado.
-- [ ] Crear `Services\SettingsService.cs`:
-  - [ ] Carga/guarda `%AppData%\VoiceTyper\settings.json`.
-  - [ ] Modelo `AppSettings { Model, Language, HotkeyModifier, HotkeyTrigger,
+  - [x] `Task<string> TranscribeAsync(byte[] wavBytes, string language = "es", CancellationToken ct)`
+  - [x] Usa `WhisperProcessor.ProcessAsync(buffer, CancellationToken.None)`.
+  - [x] Configuración: `WhisperProcessorBuilder.WithLanguage(language).WithGreedySamplingStrategy().Build()`.
+  - [x] Devuelve el texto concatenando los segments (trim, sin prefijos como "[BLANK_AUDIO]").
+  - [x] `Dispose` adecuado.
+- [x] Crear `Services\SettingsService.cs`:
+  - [x] Carga/guarda `%AppData%\VoiceTyper\settings.json`.
+  - [x] Modelo `AppSettings { Model, Language, HotkeyModifier, HotkeyTrigger,
     AutoStart, PauseOnFullscreen, MicrophoneDeviceIndex }`.
-  - [ ] **Cascada de defaults**: `Env` → `settings.json` → defaults del código.
-  - [ ] Settings default razonables.
-- [ ] En `RecordingOrchestrator`, después de capturar audio:
-  - [ ] `TrayIconService.SetState(Processing)`.
-  - [ ] `text = await TranscriberService.TranscribeAsync(audio)`.
-  - [ ] `TrayIconService.SetState(Idle)`.
-  - [ ] Por ahora: log del texto transcrito.
-- [ ] Manejo de errores:
-  - [ ] Si falla: `LoggerService.LogError(ex)`, `TrayIconService.SetState(Error)` por 2s.
-  - [ ] Si texto vacío: volver a idle silenciosamente.
+  - [x] **Cascada de defaults**: `Env` → `settings.json` → defaults del código.
+  - [x] Settings default razonables.
+- [x] En `RecordingOrchestrator`, después de capturar audio:
+  - [x] `TrayIconService.SetState(Processing)`.
+  - [x] `text = await TranscriberService.TranscribeAsync(audio)`.
+  - [x] `TrayIconService.SetState(Idle)`.
+  - [x] Por ahora: log del texto transcrito.
+- [x] Manejo de errores:
+  - [x] Si falla: `LoggerService.LogError(ex)`, `TrayIconService.SetState(Error)` por 2s.
+  - [x] Si texto vacío: volver a idle silenciosamente.
 
 ### Verificación
-- [ ] Primer arranque → aparece diálogo de descarga del modelo (~460 MB).
-  - [ ] Progreso visible.
-  - [ ] Cancelable (botón "Cancelar").
-  - [ ] Se reanuda si se interrumpe (reutilizar `.tmp` parcial).
-- [ ] Tras descarga, mantener AltGr+Space, decir "hola mundo", soltar.
-- [ ] Log muestra: `"hola mundo"`.
-- [ ] Decir una frase larga (20+ segundos). Transcripción aparece en < 5s.
-- [ ] Si el modelo falla en cargar (archivo corrupto): log de error, no crashea.
-- [ ] Verificar `%AppData%\VoiceTyper\models\ggml-small.bin` existe.
-- [ ] Crear `.env` con `VT_MODEL_DIR=ruta\custom` y verificar que se usa esa carpeta.
+- [x] Primer arranque → aparece diálogo de descarga del modelo (~460 MB).
+  - [x] Progreso visible.
+  - [x] Cancelable (botón "Cancelar").
+  - [x] Se reanuda si se interrumpe (reutilizar `.tmp` parcial).
+- [x] Tras descarga, mantener AltGr+Space, decir "hola mundo", soltar.
+- [x] Log muestra: `"hola mundo"`.
+- [x] Decir una frase larga (20+ segundos). Transcripción aparece en < 5s.
+- [x] Si el modelo falla en cargar (archivo corrupto): log de error, no crashea.
+- [x] Verificar `%AppData%\VoiceTyper\models\ggml-small.bin` existe.
+- [x] Crear `.env` con `VT_MODEL_DIR=ruta\custom` y verificar que se usa esa carpeta.
 
 ---
 

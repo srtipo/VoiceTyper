@@ -8,13 +8,25 @@ public sealed class RecordingOrchestrator : IDisposable
     private readonly HotkeyService _hotkey;
     private readonly AudioRecorderService _audio;
     private readonly TrayIconService _tray;
+    private readonly TranscriberService _transcriber;
+    private readonly SettingsService _settings;
+    private readonly LoggerService _logger;
     private bool _disposed;
 
-    public RecordingOrchestrator(HotkeyService hotkey, AudioRecorderService audio, TrayIconService tray)
+    public RecordingOrchestrator(
+        HotkeyService hotkey,
+        AudioRecorderService audio,
+        TrayIconService tray,
+        TranscriberService transcriber,
+        SettingsService settings,
+        LoggerService logger)
     {
         _hotkey = hotkey;
         _audio = audio;
         _tray = tray;
+        _transcriber = transcriber;
+        _settings = settings;
+        _logger = logger;
         _hotkey.RecordingStarted += OnRecordingStarted;
         _hotkey.RecordingStopped += () => _ = OnRecordingStoppedAsync();
     }
@@ -60,7 +72,29 @@ public sealed class RecordingOrchestrator : IDisposable
             return;
         }
 
-        Log.Info($"[Orchestrator] captured {wav.Length} bytes, transcription pending (F4)");
+        Dispatcher(() => _tray.SetState(RecordingState.Processing));
+        string text;
+        try
+        {
+            text = await _transcriber.TranscribeAsync(wav, CancellationToken.None).ConfigureAwait(false);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex);
+            Dispatcher(() => _tray.SetState(RecordingState.Error));
+            await Task.Delay(2000).ConfigureAwait(false);
+            Dispatcher(() => _tray.SetState(RecordingState.Idle));
+            return;
+        }
+
+        if (string.IsNullOrWhiteSpace(text))
+        {
+            Log.Info("[Orchestrator] transcription produced no text, back to idle");
+            Dispatcher(() => _tray.SetState(RecordingState.Idle));
+            return;
+        }
+
+        Log.Info($"[Orchestrator] transcribed: {text}");
         Dispatcher(() => _tray.SetState(RecordingState.Idle));
     }
 

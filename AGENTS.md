@@ -9,10 +9,11 @@ cursor. Funciona en cualquier app: Notepad, Chrome, VSCode, Slack, Word.
 - Stack: WPF + `Hardcodet.NotifyIcon.Wpf` + `Microsoft.Extensions.Hosting` (DI) + `CommunityToolkit.Mvvm`.
 
 ## Estado actual
-**Fase 1 completada** (esqueleto + tray + single-instance). Fases 2–7 pendientes
-(hook global, captura de audio, Whisper.net, inyección de texto, settings,
-empaquetado). `MainWindow.xaml` es placeholder; el único comportamiento real hoy
-es el icono en tray con menú Configuración / Acerca de / Salir.
+**Fases 0–4 completadas** (bootstrap, esqueleto WPF + tray, hook global
+AltGr+Space, captura NAudio, Whisper.net con descarga del modelo). Fases 5–7
+pendientes (inyección de texto, settings window, empaquetado). `MainWindow.xaml`
+es placeholder. Hoy: tray + hotkey + grabar audio + transcribir + log del
+texto (todavía no inyecta en la app destino).
 
 ## Comandos
 Todo desde la raíz del repo. No hay script de build propio.
@@ -35,11 +36,11 @@ src/VoiceTyper/
   VoiceTyper.csproj          ← net8.0-windows, WinExe, Nullable+ImplicitUsings
 ```
 
-No existen aún (F2–F6): `Services/{AudioRecorder,Transcriber,ModelManager,Hotkey,TextInjector,AutoStart,Settings,Logger}*.cs`,
-`Native/{LowLevelKeyboardHook,SendInputInterop,ClipboardInterop}.cs`,
-`Views/SettingsWindow.xaml(.cs)`, `Models/{AppSettings,WhisperModel}.cs`,
-`install.bat` / `uninstall.bat`. Cuando los crees, seguí las convenciones
-descritas abajo y el desglose de `phases.md` para esa fase.
+No existen aún (F5–F7): `Services/TextInjectorService.cs`,
+`Native/{SendInputInterop,ClipboardInterop}.cs`,
+`Views/SettingsWindow.xaml(.cs)`, `install.bat` / `uninstall.bat`. Cuando los
+creas, seguí las convenciones descritas abajo y el desglose de `phases.md`
+para esa fase.
 
 ## Gotchas no obvios
 

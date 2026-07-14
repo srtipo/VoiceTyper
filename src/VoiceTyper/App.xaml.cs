@@ -2,6 +2,7 @@
 using System.Windows;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
+using Microsoft.Extensions.Http;
 using VoiceTyper.Native;
 using VoiceTyper.Services;
 
@@ -34,11 +35,19 @@ public partial class App : Application
                 services.AddSingleton<LowLevelKeyboardHook>();
                 services.AddSingleton<HotkeyService>();
                 services.AddSingleton<AudioRecorderService>();
+                services.AddSingleton<SettingsService>();
+                services.AddSingleton<LoggerService>();
+                services.AddHttpClient<ModelManagerService>();
+                services.AddSingleton<TranscriberService>();
                 services.AddSingleton<RecordingOrchestrator>();
             })
             .Build();
 
         _host.Services.GetRequiredService<TrayIconService>();
+        _host.Services.GetRequiredService<SettingsService>();
+        _host.Services.GetRequiredService<LoggerService>();
+        _host.Services.GetRequiredService<ModelManagerService>();
+        _host.Services.GetRequiredService<TranscriberService>();
         _host.Services.GetRequiredService<HotkeyService>().Start();
         _host.Services.GetRequiredService<RecordingOrchestrator>();
     }
