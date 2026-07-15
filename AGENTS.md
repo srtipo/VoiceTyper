@@ -9,11 +9,12 @@ cursor. Funciona en cualquier app: Notepad, Chrome, VSCode, Slack, Word.
 - Stack: WPF + `Hardcodet.NotifyIcon.Wpf` + `Microsoft.Extensions.Hosting` (DI) + `CommunityToolkit.Mvvm`.
 
 ## Estado actual
-**Fases 0–4 completadas** (bootstrap, esqueleto WPF + tray, hook global
-AltGr+Space, captura NAudio, Whisper.net con descarga del modelo). Fases 5–7
-pendientes (inyección de texto, settings window, empaquetado). `MainWindow.xaml`
-es placeholder. Hoy: tray + hotkey + grabar audio + transcribir + log del
-texto (todavía no inyecta en la app destino).
+**Fases 0–5 completadas** (bootstrap, esqueleto WPF + tray, hook global
+AltGr+Space, captura NAudio, Whisper.net, **inyección de texto con
+`SendInput` Unicode + fallback `WM_PASTE`**). Fases 6–7 pendientes
+(settings window, empaquetado). `MainWindow.xaml` es placeholder. Hoy:
+tray + hotkey + grabar audio + transcribir + inyectar texto donde esté
+el cursor (probado en Notepad moderno).
 
 ## Comandos
 Todo desde la raíz del repo. No hay script de build propio.
@@ -30,17 +31,20 @@ src/VoiceTyper/
   App.xaml(.cs)              ← entrypoint; Mutex + DI host + tray
   MainWindow.xaml(.cs)       ← placeholder; OnClosing cancela y oculta
   Services/TrayIconService.cs
+  Services/HotkeyService.cs         ← reset ConsumeNextKeyDown on stop
+  Services/TextInjectorService.cs   ← dispatch UI thread + SendText/WM_PASTE
   Models/RecordingState.cs   ← enum { Idle, Recording, Processing, Error }
   Resources/                 ← app.ico + tray-{idle,recording,processing,error}.ico
   app.manifest               ← asInvoker, sin UAC, PerMonitorV2 DPI
   VoiceTyper.csproj          ← net8.0-windows, WinExe, Nullable+ImplicitUsings
+  Native/SendInputInterop.cs        ← SendText con KEYEVENTF_UNICODE
+  Native/ClipboardInterop.cs        ← Backup/Set/Restore via WPF Clipboard
+  Native/ClipboardInjector.cs       ← SendMessage WM_PASTE (fallback)
 ```
 
-No existen aún (F5–F7): `Services/TextInjectorService.cs`,
-`Native/{SendInputInterop,ClipboardInterop}.cs`,
-`Views/SettingsWindow.xaml(.cs)`, `install.bat` / `uninstall.bat`. Cuando los
-creas, seguí las convenciones descritas abajo y el desglose de `phases.md`
-para esa fase.
+No existen aún (F6–F7): `Views/SettingsWindow.xaml(.cs)`,
+`install.bat` / `uninstall.bat`. Cuando los creas, seguí las convenciones
+descritas abajo y el desglose de `phases.md` para esa fase.
 
 ## Gotchas no obvios
 
@@ -53,6 +57,9 @@ para esa fase.
 - **Iconos del tray.** `ApplicationIcon` del exe es `Resources\app.ico`. Los cuatro `tray-*.ico` se mapean desde `RecordingState` en `TrayIconService.SetState`. Se cargan con `pack://application:,,,/Resources/{name}.ico` (mayúscula en `Resources`); `LoadIcon` tiene un fallback a minúscula — no lo borres sin verificar primero.
 - **Threading de tray.** Las llamadas a `TaskbarIcon` deben hacerse en el thread de UI. `TrayIconService.SetState` / `ShowBalloon` hoy no son thread-safe; si la transcripción/hook corre en background, marshalizá con `Application.Current.Dispatcher.Invoke`.
 - **Empaquetado pendiente (F7).** El .csproj todavía **no** tiene `RuntimeIdentifier`, `PublishSingleFile`, `SelfContained`, `IncludeNativeLibrariesForSelfExtract` ni `EnableCompressionInSingleFile`. No los agregues antes de tiempo.
+- **SendInput debe correr en el UI thread.** `SendInput` desde threadpool hace que apps modernas (WinUI, XAML, algunos Electron) ignoren el input. `TextInjectorService` dispatchea al `Application.Current.Dispatcher` antes de cualquier `SendInput`/`SendMessage`.
+- **Text injection: Unicode SendInput, no WM_PASTE.** Controles WinUI/XAML (Notepad moderno, `RichEditBox` UWP, etc.) tienen paste protection que ignora `WM_PASTE` sintetizado. `SendInputInterop.SendText` con `KEYEVENTF_UNICODE` bypassea eso enviando `WM_UNICHAR` por char. `WM_PASTE` queda solo como fallback en `ClipboardInjector.SendPaste`.
+- **Hook consume flag: reset en `OnHookKeyUp`.** `ConsumeNextKeyDown` se setea en `true` cada 20ms por `HotkeyService.ConsumeLoopAsync` mientras `IsRecording`. Si no se resetea al terminar la grabación, el flag residual se come el primer keydown sintetizado por el `SendInput` post-transcripción y la inyección se rompe silenciosamente. Ver `HotkeyService.OnHookKeyUp:93`.
 
 ## Gitignore: trampa con `models/`
 

@@ -1,6 +1,7 @@
 using System.IO;
 using System.Net.Http;
 using System.Net.Http.Headers;
+using System.Threading;
 using VoiceTyper.Models;
 
 namespace VoiceTyper.Services;
@@ -73,7 +74,6 @@ public sealed class ModelManagerService
         }
 
         await using var src = await response.Content.ReadAsStreamAsync(ct).ConfigureAwait(false);
-        await using var dst = new FileStream(tmpPath, FileMode.Append, FileAccess.Write, FileShare.None, BufferSize, useAsync: true);
 
         var buffer = new byte[BufferSize];
         long downloaded = existingLength;
@@ -82,47 +82,62 @@ public sealed class ModelManagerService
         long lastLoggedPercent = -1;
         int bytesRead;
 
-        while ((bytesRead = await src.ReadAsync(buffer.AsMemory(0, buffer.Length), ct).ConfigureAwait(false)) > 0)
+        await using (var dst = new FileStream(tmpPath, FileMode.Append, FileAccess.Write, FileShare.None, BufferSize, useAsync: true))
         {
-            await dst.WriteAsync(buffer.AsMemory(0, bytesRead), ct).ConfigureAwait(false);
-            downloaded += bytesRead;
-
-            if (progress is not null)
+            while ((bytesRead = await src.ReadAsync(buffer.AsMemory(0, buffer.Length), ct).ConfigureAwait(false)) > 0)
             {
-                bool shouldReport = false;
+                await dst.WriteAsync(buffer.AsMemory(0, bytesRead), ct).ConfigureAwait(false);
+                downloaded += bytesRead;
+
+                if (progress is not null)
+                {
+                    bool shouldReport = false;
+                    if (totalBytes.HasValue && totalBytes.Value > 0)
+                    {
+                        var percent = (int)(downloaded * 100L / totalBytes.Value);
+                        if (percent != lastReportedPercent)
+                        {
+                            lastReportedPercent = percent;
+                            shouldReport = true;
+                        }
+                    }
+                    else if (downloaded - lastProgressBytes >= ProgressEveryBytes)
+                    {
+                        lastProgressBytes = downloaded;
+                        shouldReport = true;
+                    }
+
+                    if (shouldReport)
+                    {
+                        progress.Report(totalBytes.HasValue ? (double)downloaded / totalBytes.Value * 100.0 : downloaded);
+                    }
+                }
+
                 if (totalBytes.HasValue && totalBytes.Value > 0)
                 {
                     var percent = (int)(downloaded * 100L / totalBytes.Value);
-                    if (percent != lastReportedPercent)
+                    if (percent / 10 > lastLoggedPercent / 10)
                     {
-                        lastReportedPercent = percent;
-                        shouldReport = true;
+                        lastLoggedPercent = percent;
+                        Log.Info($"[ModelManager] download {percent}% ({downloaded}/{totalBytes} bytes)");
                     }
-                }
-                else if (downloaded - lastProgressBytes >= ProgressEveryBytes)
-                {
-                    lastProgressBytes = downloaded;
-                    shouldReport = true;
-                }
-
-                if (shouldReport)
-                {
-                    progress.Report(totalBytes.HasValue ? (double)downloaded / totalBytes.Value * 100.0 : downloaded);
-                }
-            }
-
-            if (totalBytes.HasValue && totalBytes.Value > 0)
-            {
-                var percent = (int)(downloaded * 100L / totalBytes.Value);
-                if (percent / 10 > lastLoggedPercent / 10)
-                {
-                    lastLoggedPercent = percent;
-                    Log.Info($"[ModelManager] download {percent}% ({downloaded}/{totalBytes} bytes)");
                 }
             }
         }
 
-        File.Move(tmpPath, destPath, overwrite: true);
+        for (var attempt = 1; attempt <= 5; attempt++)
+        {
+            try
+            {
+                File.Move(tmpPath, destPath, overwrite: true);
+                break;
+            }
+            catch (IOException) when (attempt < 5)
+            {
+                Log.Warn($"[ModelManager] move retry {attempt}/5 (file in use)");
+                Thread.Sleep(500);
+            }
+        }
         Log.Info($"[ModelManager] downloaded {m} -> {destPath} ({downloaded} bytes)");
         return destPath;
     }

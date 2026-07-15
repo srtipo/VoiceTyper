@@ -13,4 +13,5 @@ public sealed class AppSettings
     public bool AutoStart { get; set; } = false;
     public bool PauseOnFullscreen { get; set; } = true;
     public int MicrophoneDeviceIndex { get; set; } = -1;
+    public bool RestoreClipboard { get; set; } = true;
 }

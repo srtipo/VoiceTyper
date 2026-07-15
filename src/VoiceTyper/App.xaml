@@ -8,6 +8,7 @@
         <ResourceDictionary>
             <ContextMenu x:Key="TrayContextMenu" x:Shared="false">
                 <MenuItem Header="Configuración…" Click="OnOpenSettings" />
+                <MenuItem Header="Reintentar descarga" Click="OnRetryDownload" />
                 <Separator />
                 <MenuItem Header="Acerca de…" Click="OnAbout" />
                 <Separator />

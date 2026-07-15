@@ -47,6 +47,7 @@ public class TrayIconService : IDisposable
             RecordingState.Recording => LoadIcon("tray-recording"),
             RecordingState.Processing => LoadIcon("tray-processing"),
             RecordingState.Error => LoadIcon("tray-error"),
+            RecordingState.NotReady => LoadIcon("tray-error"),
             _ => LoadIcon("tray-idle")
         };
         _trayIcon.ToolTipText = state switch
@@ -55,6 +56,7 @@ public class TrayIconService : IDisposable
             RecordingState.Recording => "VoiceTyper — Grabando…",
             RecordingState.Processing => "VoiceTyper — Procesando…",
             RecordingState.Error => "VoiceTyper — Error",
+            RecordingState.NotReady => "VoiceTyper — Modelo no descargado",
             _ => "VoiceTyper"
         };
     }

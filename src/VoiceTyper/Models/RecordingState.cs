@@ -5,5 +5,6 @@ public enum RecordingState
     Idle,
     Recording,
     Processing,
-    Error
+    Error,
+    NotReady
 }

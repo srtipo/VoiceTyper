@@ -21,6 +21,7 @@ public sealed class HotkeyService : IDisposable
     public VirtualKey Trigger { get; } = VirtualKey.Space;
     public bool IsRecording { get; private set; }
     public Task RecordingTask => _currentTcs?.Task ?? Task.CompletedTask;
+    public bool IsReady { get; set; } = false;
 
     public event Action? RecordingStarted;
     public event Action? RecordingStopped;
@@ -70,6 +71,7 @@ public sealed class HotkeyService : IDisposable
 
     private void OnHookKeyDown(VirtualKey vk)
     {
+        if (!IsReady) return;
         if (vk != Trigger) return;
         if (IsRecording) return;
         if (!LowLevelKeyboardHook.IsKeyPressed((ushort)Modifier)) return;
@@ -83,10 +85,13 @@ public sealed class HotkeyService : IDisposable
 
     private void OnHookKeyUp(VirtualKey vk)
     {
+        if (!IsReady) return;
         if (vk != Trigger) return;
         if (!IsRecording) return;
 
         IsRecording = false;
+        _hook.ConsumeNextKeyDown = false;
+        Log.Info("[Hotkey] ConsumeNextKeyDown reset (recording stopped)");
         RecordingStopped?.Invoke();
         _currentTcs?.TrySetResult(true);
         _currentTcs = null;

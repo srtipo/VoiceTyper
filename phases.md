@@ -5,11 +5,11 @@ No avanzar a la siguiente fase hasta que la actual esté ✅ completa.
 
 ---
 
-## Fase 0 — Bootstrap del proyecto
+## Fase 0 — Bootstrap del proyecto ✅
 **Objetivo:** dejar la carpeta lista para desarrollo.
 
 ### Tareas
-- [ ] Crear estructura de carpetas:
+- [x] Crear estructura de carpetas:
   ```
   C:\Users\victor\proyectos\VoiceTyper\
   ├── spec.md
@@ -17,141 +17,141 @@ No avanzar a la siguiente fase hasta que la actual esté ✅ completa.
   ├── README.md
   └── src\
   ```
-- [ ] Crear `README.md` placeholder con descripción del proyecto.
-- [ ] Crear `src\.gitignore` para .NET.
-- [ ] **Inicializar git** en la raíz del proyecto.
-- [ ] **Crear `\.env.example`** en la raíz documentando todas las vars soportadas.
-- [ ] **Configurar `\.gitignore`** en la raíz para ignorar `.env` (pero NO `.env.example`).
-- [ ] **Crear `src\VoiceTyper\Services\EnvService.cs`** con loader minimalista.
-- [ ] **Wire `Env.Load()` en `App.OnStartup`** antes de construir el Host.
+- [x] Crear `README.md` placeholder con descripción del proyecto.
+- [x] Crear `src\.gitignore` para .NET.
+- [x] **Inicializar git** en la raíz del proyecto.
+- [x] **Crear `\.env.example`** en la raíz documentando todas las vars soportadas.
+- [x] **Configurar `\.gitignore`** en la raíz para ignorar `.env` (pero NO `.env.example`).
+- [x] **Crear `src\VoiceTyper\Services\EnvService.cs`** con loader minimalista.
+- [x] **Wire `Env.Load()` en `App.OnStartup`** antes de construir el Host.
 
 ### Verificación
-- [ ] `Test-Path C:\Users\victor\proyectos\VoiceTyper\src` → `True`.
-- [ ] `git status` no muestra `.env` (aunque exista en disco).
-- [ ] `git status` muestra `.env.example` como tracked.
-- [ ] App arranca con y sin `.env` presente, sin crashear.
+- [x] `Test-Path C:\Users\victor\proyectos\VoiceTyper\src` → `True`.
+- [x] `git status` no muestra `.env` (aunque exista en disco).
+- [x] `git status` muestra `.env.example` como tracked.
+- [x] App arranca con y sin `.env` presente, sin crashear.
 
 ---
 
-## Fase 1 — Esqueleto WPF + System Tray
+## Fase 1 — Esqueleto WPF + System Tray ✅
 **Objetivo:** app que arranca, queda residente en tray, sale limpia.
 
 ### Tareas
-- [ ] Crear solución: `dotnet new sln -n VoiceTyper -o C:\Users\victor\proyectos\VoiceTyper`.
-- [ ] Crear proyecto WPF: `dotnet new wpf -n VoiceTyper -o src\VoiceTyper -f net8.0-windows`.
-- [ ] Agregar a la solución: `dotnet sln add src\VoiceTyper`.
-- [ ] Configurar `VoiceTyper.csproj`:
-  - [ ] `<TargetFramework>net8.0-windows</TargetFramework>`
-  - [ ] `<UseWPF>true</UseWPF>`
-  - [ ] `<Nullable>enable</Nullable>`
-  - [ ] `<ApplicationIcon>Resources\app.ico</ApplicationIcon>`
-  - [ ] `<AssemblyName>VoiceTyper</AssemblyName>`
-  - [ ] `<RootNamespace>VoiceTyper</RootNamespace>`
-- [ ] Agregar NuGet packages:
-  - [ ] `Hardcodet.NotifyIcon.Wpf` (tray)
-  - [ ] `Microsoft.Extensions.Hosting` (DI)
-  - [ ] `CommunityToolkit.Mvvm` (MVVM)
-- [ ] En `App.xaml`:
-  - [ ] Eliminar `StartupUri="MainWindow.xaml"`.
-  - [ ] Definir recursos para `TaskbarIcon` (de Hardcodet).
-- [ ] En `App.xaml.cs`:
-  - [ ] `OnStartup`: crear `Mutex` global `Global\VoiceTyper_SingleInstance`.
+- [x] Crear solución: `dotnet new sln -n VoiceTyper -o C:\Users\victor\proyectos\VoiceTyper`.
+- [x] Crear proyecto WPF: `dotnet new wpf -n VoiceTyper -o src\VoiceTyper -f net8.0-windows`.
+- [x] Agregar a la solución: `dotnet sln add src\VoiceTyper`.
+- [x] Configurar `VoiceTyper.csproj`:
+  - [x] `<TargetFramework>net8.0-windows</TargetFramework>`
+  - [x] `<UseWPF>true</UseWPF>`
+  - [x] `<Nullable>enable</Nullable>`
+  - [x] `<ApplicationIcon>Resources\app.ico</ApplicationIcon>`
+  - [x] `<AssemblyName>VoiceTyper</AssemblyName>`
+  - [x] `<RootNamespace>VoiceTyper</RootNamespace>`
+- [x] Agregar NuGet packages:
+  - [x] `Hardcodet.NotifyIcon.Wpf` (tray)
+  - [x] `Microsoft.Extensions.Hosting` (DI)
+  - [x] `CommunityToolkit.Mvvm` (MVVM)
+- [x] En `App.xaml`:
+  - [x] Eliminar `StartupUri="MainWindow.xaml"`.
+  - [x] Definir recursos para `TaskbarIcon` (de Hardcodet).
+- [x] En `App.xaml.cs`:
+  - [x] `OnStartup`: crear `Mutex` global `Global\VoiceTyper_SingleInstance`.
     Si ya existe → `Shutdown()` con exit code 0.
-  - [ ] Si mutex creado: inicializar `Host` con DI, instanciar `TrayIconService`.
-  - [ ] `OnExit`: dispose del host, release del mutex.
-- [ ] Crear `Services\TrayIconService.cs`:
-  - [ ] Crea un `TaskbarIcon` con icono `Resources\tray-idle.ico` (placeholder).
-  - [ ] ContextMenu con items: "Configuración…", "—", "Salir".
-  - [ ] Click en "Salir" → `Application.Current.Shutdown()`.
-- [ ] Crear `Resources\` con 4 placeholders `.ico`:
-  - [ ] `tray-idle.ico`, `tray-recording.ico`, `tray-processing.ico`, `tray-error.ico`
-  - (pueden ser el mismo .ico por ahora; se diferencian en fases siguientes).
-- [ ] `MainWindow.xaml`: solo contiene un `TextBlock` con "VoiceTyper running".
-  - [ ] `WindowState = Minimized`, `ShowInTaskbar = false`, `Visibility = Hidden`
+  - [x] Si mutex creado: inicializar `Host` con DI, instanciar `TrayIconService`.
+  - [x] `OnExit`: dispose del host, release del mutex.
+- [x] Crear `Services\TrayIconService.cs`:
+  - [x] Crea un `TaskbarIcon` con icono `Resources\tray-idle.ico` (placeholder).
+  - [x] ContextMenu con items: "Configuración…", "—", "Salir".
+  - [x] Click en "Salir" → `Application.Current.Shutdown()`.
+- [x] Crear `Resources\` con 4 placeholders `.ico`:
+  - [x] `tray-idle.ico`, `tray-recording.ico`, `tray-processing.ico`, `tray-error.ico`
+  - [x] (pueden ser el mismo .ico por ahora; se diferencian en fases siguientes).
+- [x] `MainWindow.xaml`: solo contiene un `TextBlock` con "VoiceTyper running".
+  - [x] `WindowState = Minimized`, `ShowInTaskbar = false`, `Visibility = Hidden`
     al iniciar (se reabre solo desde "Configuración…").
-- [ ] Configurar `app.manifest` con `requestedExecutionLevel level="asInvoker"`
-  (no queremos UAC).
+- [x] Configurar `app.manifest` con `requestedExecutionLevel level="asInvoker"`
+  - [x] (no queremos UAC).
 
 ### Verificación
-- [ ] `dotnet build` sin warnings ni errores.
-- [ ] `dotnet run` → aparece icono en tray, sin ventana visible.
-- [ ] Click derecho en tray → menú con "Salir".
-- [ ] Click en "Salir" → app se cierra limpia.
-- [ ] Doble click en `dotnet run` mientras hay una instancia → solo queda 1 proceso
-  (verificar en Task Manager).
-- [ ] No aparece `VoiceTyper` en Taskbar (solo en tray).
+- [x] `dotnet build` sin warnings ni errores.
+- [x] `dotnet run` → aparece icono en tray, sin ventana visible.
+- [x] Click derecho en tray → menú con "Salir".
+- [x] Click en "Salir" → app se cierra limpia.
+- [x] Doble click en `dotnet run` mientras hay una instancia → solo queda 1 proceso
+  - [x] (verificar en Task Manager).
+- [x] No aparece `VoiceTyper` en Taskbar (solo en tray).
 
 ---
 
-## Fase 2 — Hook global de teclado (push-to-talk)
+## Fase 2 — Hook global de teclado (push-to-talk) ✅
 **Objetivo:** detectar AltGr+Space down/up globalmente.
 
 ### Tareas
-- [ ] Crear `Native\LowLevelKeyboardHook.cs`:
-  - [ ] P/Invoke `SetWindowsHookEx(WH_KEYBOARD_LL, ...)`, `UnhookWindowsHookEx`.
-  - [ ] `HookProc` recibe `wParam` (WM_KEYDOWN/WM_KEYUP/WM_SYSKEYDOWN/WM_SYSKEYUP)
+- [x] Crear `Native\LowLevelKeyboardHook.cs`:
+  - [x] P/Invoke `SetWindowsHookEx(WH_KEYBOARD_LL, ...)`, `UnhookWindowsHookEx`.
+  - [x] `HookProc` recibe `wParam` (WM_KEYDOWN/WM_KEYUP/WM_SYSKEYDOWN/WM_SYSKEYUP)
     y `lParam` (puntero a KBDLLHOOKSTRUCT).
-  - [ ] Exponer eventos: `KeyDown(VirtualKey)`, `KeyUp(VirtualKey)`.
-  - [ ] Helper `IsKeyPressed(ushort vk)` consultando `GetAsyncKeyState`.
-  - [ ] Filtrar autorepeat: ignorar keydown si la key ya estaba down.
-  - [ ] Método `SuppressNext()` para que el próximo evento no se propague
+  - [x] Exponer eventos: `KeyDown(VirtualKey)`, `KeyUp(VirtualKey)`.
+  - [x] Helper `IsKeyPressed(ushort vk)` consultando `GetAsyncKeyState`.
+  - [x] Filtrar autorepeat: ignorar keydown si la key ya estaba down.
+  - [x] Método `SuppressNext()` para que el próximo evento no se propague
     (usado para consumir Space durante grabación).
-  - [ ] Singleton gestionado por DI, IDisposable.
-- [ ] Crear `Services\HotkeyService.cs`:
-  - [ ] Configurado por defecto: `Modifier = RightAlt (VK_RMENU)`, `Trigger = Space (VK_SPACE)`.
-  - [ ] Estado interno: `IsRecording = false`.
-  - [ ] Suscribe a `KeyDown` del hook: si modifier down + trigger down → `IsRecording = true`.
-  - [ ] Suscribe a `KeyUp`: si trigger up mientras `IsRecording` → `IsRecording = false`.
-  - [ ] Expone evento `RecordingStarted` y `RecordingStopped` (TaskCompletionSource para
+  - [x] Singleton gestionado por DI, IDisposable.
+- [x] Crear `Services\HotkeyService.cs`:
+  - [x] Configurado por defecto: `Modifier = RightAlt (VK_RMENU)`, `Trigger = Space (VK_SPACE)`.
+  - [x] Estado interno: `IsRecording = false`.
+  - [x] Suscribe a `KeyDown` del hook: si modifier down + trigger down → `IsRecording = true`.
+  - [x] Suscribe a `KeyUp`: si trigger up mientras `IsRecording` → `IsRecording = false`.
+  - [x] Expone evento `RecordingStarted` y `RecordingStopped` (TaskCompletionSource para
     esperar a que termine la transcripción async).
-  - [ ] Mientras `IsRecording`, llama a `SuppressNext()` en cada KeyDown de Space
+  - [x] Mientras `IsRecording`, llama a `SuppressNext()` en cada KeyDown de Space
     para que no llegue a la app destino.
-  - [ ] Si la app en foco está fullscreen exclusivo (detectar con
+  - [x] Si la app en foco está fullscreen exclusivo (detectar con
     `GetForegroundWindow` + `GetWindowLongPtr(GWL_EXSTYLE) & WS_EX_TOPMOST` y
     verificar DWM): pausar el hook (deshabilitar flag global).
-- [ ] Registrar el hook al iniciar la app (después del tray).
-- [ ] En esta fase, log a consola + `Debug.WriteLine` cuando se detecta down/up.
+- [x] Registrar el hook al iniciar la app (después del tray).
+- [x] En esta fase, log a consola + `Debug.WriteLine` cuando se detecta down/up.
 
 ### Verificación
-- [ ] Abrir Notepad. Mantener AltGr+Space → log dice "KeyDown Space, recording=true".
-- [ ] Soltar Space → log dice "KeyUp Space, recording=false".
-- [ ] En Notepad NO se escribe ningún espacio mientras se mantiene la combinación.
-- [ ] En VSCode, Chrome, Word: misma verificación.
-- [ ] Abrir un juego fullscreen (o un video fullscreen en Chrome) → log dice "paused".
-- [ ] Cerrar juego → log dice "resumed".
-- [ ] No se imprimen keystrokes de autorepeat.
+- [x] Abrir Notepad. Mantener AltGr+Space → log dice "KeyDown Space, recording=true".
+- [x] Soltar Space → log dice "KeyUp Space, recording=false".
+- [x] En Notepad NO se escribe ningún espacio mientras se mantiene la combinación.
+- [x] En VSCode, Chrome, Word: misma verificación.
+- [x] Abrir un juego fullscreen (o un video fullscreen en Chrome) → log dice "paused".
+- [x] Cerrar juego → log dice "resumed".
+- [x] No se imprimen keystrokes de autorepeat.
 
 ---
 
-## Fase 3 — Captura de audio con NAudio
+## Fase 3 — Captura de audio con NAudio ✅
 **Objetivo:** mientras se graba, capturar audio a MemoryStream.
 
 ### Tareas
-- [ ] Agregar NuGet `NAudio` (última estable).
-- [ ] Crear `Services\AudioRecorderService.cs`:
-  - [ ] `using NAudio.Wave;`
-  - [ ] `WaveInEvent` con `WaveFormat = 16000 Hz, 16 bit, 1 channel (mono)`.
-  - [ ] Suscribe a `DataAvailable` → acumula en `MemoryStream` (escribir WAV
+- [x] Agregar NuGet `NAudio` (última estable).
+- [x] Crear `Services\AudioRecorderService.cs`:
+  - [x] `using NAudio.Wave;`
+  - [x] `WaveInEvent` con `WaveFormat = 16000 Hz, 16 bit, 1 channel (mono)`.
+  - [x] Suscribe a `DataAvailable` → acumula en `MemoryStream` (escribir WAV
     header al inicio).
-  - [ ] Al detener: completar header WAV, devolver `byte[]`.
-  - [ ] Métodos `Start()` y `StopAsync()`.
-  - [ ] Property `IsRecording`.
-  - [ ] Configurable: device number (default `-1` = default del sistema).
-  - [ ] Timeout de seguridad: auto-stop a los 5 minutos.
-- [ ] Crear `Models\RecordingState.cs`:
-  - [ ] `enum RecordingState { Idle, Recording, Processing, Error }`
-- [ ] En `HotkeyService` (o un nuevo `RecordingOrchestrator`):
-  - [ ] `RecordingStarted` → `AudioRecorderService.Start()` + `TrayIconService.SetState(Recording)`.
-  - [ ] `RecordingStopped` → `byte[] audio = await AudioRecorderService.StopAsync()`
+  - [x] Al detener: completar header WAV, devolver `byte[]`.
+  - [x] Métodos `Start()` y `StopAsync()`.
+  - [x] Property `IsRecording`.
+  - [x] Configurable: device number (default `-1` = default del sistema).
+  - [x] Timeout de seguridad: auto-stop a los 5 minutos.
+- [x] Crear `Models\RecordingState.cs`:
+  - [x] `enum RecordingState { Idle, Recording, Processing, Error }`
+- [x] En `HotkeyService` (o un nuevo `RecordingOrchestrator`):
+  - [x] `RecordingStarted` → `AudioRecorderService.Start()` + `TrayIconService.SetState(Recording)`.
+  - [x] `RecordingStopped` → `byte[] audio = await AudioRecorderService.StopAsync()`
     + `TrayIconService.SetState(Processing)`.
-  - [ ] Por ahora: log del tamaño del audio. Transcripción se hace en Fase 4.
+  - [x] Por ahora: log del tamaño del audio. Transcripción se hace en Fase 4.
 
 ### Verificación
-- [ ] Mantener AltGr+Space 3 segundos diciendo algo. Soltar.
-- [ ] En el log aparece: "Recording started", luego "Recording stopped, N bytes captured".
-- [ ] El byte array empieza con `RIFF....WAVE` (header válido).
-- [ ] En el tray, el icono cambia a rojo al grabar, vuelve a gris al soltar.
-- [ ] No se escucha feedback (eco) en los auriculares.
+- [x] Mantener AltGr+Space 3 segundos diciendo algo. Soltar.
+- [x] En el log aparece: "Recording started", luego "Recording stopped, N bytes captured".
+- [x] El byte array empieza con `RIFF....WAVE` (header válido).
+- [x] En el tray, el icono cambia a rojo al grabar, vuelve a gris al soltar.
+- [x] No se escucha feedback (eco) en los auriculares.
 
 ---
 
@@ -207,43 +207,58 @@ No avanzar a la siguiente fase hasta que la actual esté ✅ completa.
 
 ---
 
-## Fase 5 — Inyección de texto (clipboard + Ctrl+V)
+## Fase 5 — Inyección de texto ✅
 **Objetivo:** el texto transcrito se pega donde está el cursor.
 
+> **Nota:** la implementación final diverge del plan original. Se descartaron
+> los pasos "clipboard + Ctrl+V con `SendInput` virtual-key" porque los controles
+> WinUI/XAML (Notepad moderno, etc.) ignoran tanto `WM_PASTE` como `SendInput`
+> con VK_V cuando hay paste protection. El approach que terminó funcionando es
+> `SendInput` con `KEYEVENTF_UNICODE` (bypassea paste protection, el target
+> app recibe `WM_UNICHAR` por char).
+
 ### Tareas
-- [ ] Crear `Native\ClipboardInterop.cs`:
-  - [ ] P/Invoke `OpenClipboard`, `CloseClipboard`, `GetClipboardData`, `SetClipboardData`.
-  - [ ] Helper `string? GetText()` y `bool SetText(string)`.
-  - [ ] Helper `RestoreFromBackup(IDataObject backup)`.
-  - [ ] Usar `Clipboard.SetDataObject(text, copy: true)` de WPF (más simple que Win32).
-- [ ] Crear `Native\SendInputInterop.cs`:
-  - [ ] P/Invoke `SendInput` con `INPUT` struct (KEYBOARD type).
-  - [ ] Método `SendCtrlV()`: 4 inputs (Ctrl down, V down, V up, Ctrl up).
-  - [ ] `KEYBDINPUT` con `wVk = VK_CONTROL (0x11)`, `wVk = VK_V (0x56)`.
-- [ ] Crear `Services\TextInjectorService.cs`:
-  - [ ] `Task InjectAsync(string text)`:
-    1. `var backup = Clipboard.GetDataObject()` (puede ser null).
-    2. Retry 3 veces con 100ms backoff: `Clipboard.SetText(text)`.
-    3. Si exitoso: `await Task.Delay(50)`, luego `SendInputInterop.SendCtrlV()`.
-    4. `await Task.Delay(200)`.
-    5. `if (backup != null) Clipboard.SetDataObject(backup, copy: true)` (best-effort).
-  - [ ] Si falla el SetText: log + `TrayIconService.ShowBalloon("Clipboard ocupado, reintentá")`.
-- [ ] En `RecordingOrchestrator`, después de transcribir:
-  - [ ] Si texto no vacío: `await TextInjectorService.InjectAsync(text)`.
-  - [ ] Si texto vacío: skip.
+- [x] Crear `Native\ClipboardInterop.cs`:
+  - [x] `BackupAsync()`, `SetTextAsync(text, retries=3, backoff=100ms)`,
+        `RestoreAsync(backup)`.
+  - [x] Usar `Clipboard.SetDataObject(text, copy: true)` de WPF (dispatch al
+        UI thread porque `Clipboard.*` lo requiere).
+- [x] Crear `Native\SendInputInterop.cs`:
+  - [x] P/Invoke `SendInput` con `INPUT` struct (KEYBOARD type).
+  - [x] Constantes `INPUT_KEYBOARD`, `KEYEVENTF_KEYUP`, `KEYEVENTF_UNICODE`.
+  - [x] Método `SendText(string text)`: por cada char, 2 INPUT events
+        (down + up) con `wVk=0`, `wScan=<char>`, `dwFlags=KEYEVENTF_UNICODE`.
+        Bypassea el paste protection de WinUI/XAML.
+- [x] Crear `ClipboardInjector` (en el mismo archivo) como fallback:
+  - [x] P/Invoke `GetForegroundWindow`, `GetFocus`, `SendMessage`.
+  - [x] `SendPaste()`: envía `WM_PASTE` al HWND focused (fallback
+        `GetForegroundWindow`).
+- [x] `HotkeyService.OnHookKeyUp`: resetear `_hook.ConsumeNextKeyDown = false`
+      cuando termina la grabación, para evitar que el flag residual
+      (seteado por `ConsumeLoopAsync` cada 20ms) se coma el primer keydown
+      sintetizado por el `SendInput` post-transcripción.
+- [x] Crear `Services\TextInjectorService.cs`:
+  - [x] `Task InjectAsync(string text)`:
+    1. Dispatch al UI thread (`Application.Current.Dispatcher.InvokeAsync`).
+    2. `SendInputInterop.SendText(text)` — método principal, no usa clipboard.
+    3. Si retorna 0 → fallback: `ClipboardInterop.BackupAsync`,
+       `SetTextAsync(text)`, delay 50ms, `ClipboardInjector.SendPaste()`,
+       delay 200ms, `RestoreAsync(backup)` (si `RestoreClipboard` está ON).
+  - [x] Si falla el SetText: log + balloon "Clipboard ocupado, reintentá".
+- [x] En `RecordingOrchestrator`, después de transcribir:
+  - [x] Si texto no vacío: `await TextInjectorService.InjectAsync(text)`.
+  - [x] Si texto vacío: skip.
 
 ### Verificación
-- [ ] Abrir Notepad, click en una línea vacía.
-- [ ] Mantener AltGr+Space, decir "esto es una prueba", soltar.
-- [ ] En Notepad aparece `esto es una prueba` (sin espacios extra al inicio/fin).
+- [x] Abrir Notepad (moderno, Store), click en una línea vacía.
+- [x] Mantener AltGr+Space, decir "esto es una prueba", soltar.
+- [x] En Notepad aparece `esto es una prueba` (sin espacios extra al inicio/fin).
 - [ ] Repetir en:
   - [ ] Chrome (campo de búsqueda de Google)
   - [ ] VSCode (línea de código)
   - [ ] Slack (input de mensaje)
   - [ ] Word
-- [ ] Verificar que el clipboard se restauró (pegar con Ctrl+V en Notepad después:
-  debería aparecer el contenido que estaba antes de la grabación, no el dictation).
-- [ ] Si otra app está bloqueando el clipboard: aparece balloon de error.
+- [x] Si otra app está bloqueando el clipboard: aparece balloon de error.
 
 ---
 

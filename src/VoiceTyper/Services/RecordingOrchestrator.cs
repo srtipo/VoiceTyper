@@ -11,6 +11,7 @@ public sealed class RecordingOrchestrator : IDisposable
     private readonly TranscriberService _transcriber;
     private readonly SettingsService _settings;
     private readonly LoggerService _logger;
+    private readonly TextInjectorService _injector;
     private bool _disposed;
 
     public RecordingOrchestrator(
@@ -19,7 +20,8 @@ public sealed class RecordingOrchestrator : IDisposable
         TrayIconService tray,
         TranscriberService transcriber,
         SettingsService settings,
-        LoggerService logger)
+        LoggerService logger,
+        TextInjectorService injector)
     {
         _hotkey = hotkey;
         _audio = audio;
@@ -27,6 +29,7 @@ public sealed class RecordingOrchestrator : IDisposable
         _transcriber = transcriber;
         _settings = settings;
         _logger = logger;
+        _injector = injector;
         _hotkey.RecordingStarted += OnRecordingStarted;
         _hotkey.RecordingStopped += () => _ = OnRecordingStoppedAsync();
     }
@@ -95,6 +98,16 @@ public sealed class RecordingOrchestrator : IDisposable
         }
 
         Log.Info($"[Orchestrator] transcribed: {text}");
+
+        try
+        {
+            await _injector.InjectAsync(text).ConfigureAwait(false);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex);
+        }
+
         Dispatcher(() => _tray.SetState(RecordingState.Idle));
     }
 
