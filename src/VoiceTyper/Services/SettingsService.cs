@@ -1,3 +1,4 @@
+using System;
 using System.IO;
 using System.Text.Json;
 using System.Text.Json.Serialization;
@@ -21,6 +22,8 @@ public sealed class SettingsService
 
     public AppSettings Current { get; private set; }
 
+    public event Action<AppSettings>? Changed;
+
     public SettingsService()
     {
         Current = BuildEffective();
@@ -37,6 +40,14 @@ public sealed class SettingsService
         var json = JsonSerializer.Serialize(settings, _writeOptions);
         File.WriteAllText(path, json);
         Current = settings;
+        try
+        {
+            Changed?.Invoke(settings);
+        }
+        catch (Exception ex)
+        {
+            Log.Error($"[Settings] Changed handler threw: {ex.Message}");
+        }
     }
 
     public void Reload()

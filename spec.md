@@ -79,6 +79,45 @@ en cualquier campo de texto activo, mediante un atajo global push-to-talk.
   - Acerca de…
   - Salir
 
+### 5.6.1 Indicador flotante de estado (cerca del cursor)
+Indicador visual adicional al tray icon, pensado para que el usuario pueda ver
+el estado de un vistazo sin tener que mover la vista al system tray mientras
+está escribiendo.
+
+- **Implementación**: ventana WPF sin chrome (`WindowStyle=None`,
+  `AllowsTransparency=true`, `Background=Transparent`), singleton gestionado
+  por `CursorIndicatorService`.
+- **Flags críticos**: `ShowActivated=false` e `IsHitTestVisible=false` para
+  que la ventana **no robe el foco** del campo donde está escribiendo el
+  usuario (sin esto, cada `Show` mueve el caret fuera del control destino y
+  la inyección posterior de `SendInput` se va al vacío).
+- **Posición**: esquina inferior-derecha del cursor, offset `(20, 20)` DIPs.
+  Sigue al cursor a ~30 fps vía `DispatcherTimer` + P/Invoke `GetCursorPos`.
+- **Multi-monitor / DPI mixto**: la posición se convierte de píxeles físicos
+  a DIPs usando `PresentationSource.CompositionTarget.TransformToDevice`. Si
+  el cursor está en el borde inferior del monitor, el indicador se refleja
+  hacia arriba (clamp al `WorkingArea` vía `MonitorFromPoint`).
+- **Estados visibles** (los demás estados mantienen la ventana oculta):
+  - 🔴 **Grabando** — círculo rojo `#E53935` con animación **pulse** (opacity
+    1.0 → 0.5 → 1.0, ~900 ms).
+  - 🟡 **Procesando** — círculo ámbar `#FFB300` con animación **pulse** (opacity
+    0.5 → 1.0, ~600 ms, más rápido que Recording para diferenciar
+    visualmente). La rotación fue removida porque el `RenderTransform` sobre
+    la Ellipse hacía que el bounding box rotado se extendiera más allá del
+    frame 16×16 de la Window, y WPF lo clipaba a la forma de Pac-Man.
+  - ⚫ **Error** — círculo rojo oscuro `#B71C1C`, estático.
+- **Estados ocultos**: `Idle` y `NotReady` → ventana oculta, `DispatcherTimer`
+  detenido (no consume CPU).
+- **Forma**: círculo de 16×16 DIPs (reducido del 28×28 original), sin texto.
+  Solo el color y la animación comunican el estado.
+- **Diagrama de estados**:
+  ```
+  Idle ──RecordingStarted──▶ Recording (rojo, pulse 900 ms)
+  Recording ──KeyUp──▶ Processing (ámbar, pulse 600 ms)
+  Processing ──done──▶ Idle (oculto)
+  Processing ──error──▶ Error (rojo oscuro, estático) ──2 s──▶ Idle
+  ```
+
 ### 5.7 Auto-start con Windows
 - Vía Registry: `HKCU\Software\Microsoft\Windows\CurrentVersion\Run`
   con valor `"VoiceTyper" = "<exe-path>"`.

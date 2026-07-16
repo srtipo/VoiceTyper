@@ -12,6 +12,7 @@ public sealed class RecordingOrchestrator : IDisposable
     private readonly SettingsService _settings;
     private readonly LoggerService _logger;
     private readonly TextInjectorService _injector;
+    private readonly CursorIndicatorService _indicator;
     private bool _disposed;
 
     public RecordingOrchestrator(
@@ -21,7 +22,8 @@ public sealed class RecordingOrchestrator : IDisposable
         TranscriberService transcriber,
         SettingsService settings,
         LoggerService logger,
-        TextInjectorService injector)
+        TextInjectorService injector,
+        CursorIndicatorService indicator)
     {
         _hotkey = hotkey;
         _audio = audio;
@@ -30,6 +32,7 @@ public sealed class RecordingOrchestrator : IDisposable
         _settings = settings;
         _logger = logger;
         _injector = injector;
+        _indicator = indicator;
         _hotkey.RecordingStarted += OnRecordingStarted;
         _hotkey.RecordingStopped += () => _ = OnRecordingStoppedAsync();
     }
@@ -37,7 +40,8 @@ public sealed class RecordingOrchestrator : IDisposable
     private void OnRecordingStarted()
     {
         Log.Info("[Orchestrator] recording started");
-        Dispatcher(() => _tray.SetState(RecordingState.Recording));
+        _audio.DeviceNumber = _settings.Current.MicrophoneDeviceIndex;
+        SetUiState(RecordingState.Recording);
 
         try
         {
@@ -46,15 +50,15 @@ public sealed class RecordingOrchestrator : IDisposable
         catch (Exception ex)
         {
             Log.Error($"[Orchestrator] start failed: {ex.Message}");
-            Dispatcher(() => _tray.SetState(RecordingState.Error));
-            Dispatcher(() => _tray.ShowBalloon("VoiceTyper — Error", "No se pudo iniciar la captura de audio."));
+            SetUiState(RecordingState.Error);
+            DispatcherUi(() => _tray.ShowBalloon("VoiceTyper — Error", "No se pudo iniciar la captura de audio."));
         }
     }
 
     private async Task OnRecordingStoppedAsync()
     {
         Log.Info("[Orchestrator] recording stopped");
-        Dispatcher(() => _tray.SetState(RecordingState.Processing));
+        SetUiState(RecordingState.Processing);
 
         byte[] wav;
         try
@@ -64,18 +68,18 @@ public sealed class RecordingOrchestrator : IDisposable
         catch (Exception ex)
         {
             Log.Error($"[Orchestrator] stop failed: {ex.Message}");
-            Dispatcher(() => _tray.SetState(RecordingState.Error));
+            SetUiState(RecordingState.Error);
             return;
         }
 
         if (wav.Length == 0)
         {
             Log.Info("[Orchestrator] empty capture, back to idle");
-            Dispatcher(() => _tray.SetState(RecordingState.Idle));
+            SetUiState(RecordingState.Idle);
             return;
         }
 
-        Dispatcher(() => _tray.SetState(RecordingState.Processing));
+        SetUiState(RecordingState.Processing);
         string text;
         try
         {
@@ -84,16 +88,16 @@ public sealed class RecordingOrchestrator : IDisposable
         catch (Exception ex)
         {
             _logger.LogError(ex);
-            Dispatcher(() => _tray.SetState(RecordingState.Error));
+            SetUiState(RecordingState.Error);
             await Task.Delay(2000).ConfigureAwait(false);
-            Dispatcher(() => _tray.SetState(RecordingState.Idle));
+            SetUiState(RecordingState.Idle);
             return;
         }
 
         if (string.IsNullOrWhiteSpace(text))
         {
             Log.Info("[Orchestrator] transcription produced no text, back to idle");
-            Dispatcher(() => _tray.SetState(RecordingState.Idle));
+            SetUiState(RecordingState.Idle);
             return;
         }
 
@@ -108,7 +112,23 @@ public sealed class RecordingOrchestrator : IDisposable
             _logger.LogError(ex);
         }
 
-        Dispatcher(() => _tray.SetState(RecordingState.Idle));
+        SetUiState(RecordingState.Idle);
+    }
+
+    private void SetUiState(RecordingState state)
+    {
+        DispatcherUi(() =>
+        {
+            _tray.SetState(state);
+            if (state == RecordingState.Idle)
+            {
+                _indicator.Hide();
+            }
+            else
+            {
+                _indicator.Show(state);
+            }
+        });
     }
 
     public void Dispose()
@@ -117,10 +137,11 @@ public sealed class RecordingOrchestrator : IDisposable
         _disposed = true;
         _hotkey.RecordingStarted -= OnRecordingStarted;
         _hotkey.RecordingStopped -= () => _ = OnRecordingStoppedAsync();
+        _indicator.Hide();
         GC.SuppressFinalize(this);
     }
 
-    private static void Dispatcher(Action a)
+    private static void DispatcherUi(Action a)
     {
         var d = Application.Current?.Dispatcher;
         if (d is null || d.CheckAccess())

@@ -262,36 +262,75 @@ No avanzar a la siguiente fase hasta que la actual esté ✅ completa.
 
 ---
 
-## Fase 6 — Settings window + pulido UX
+## Fase 6 — Settings window + pulido UX ✅
 **Objetivo:** UI para configurar todo lo configurable.
 
 ### Tareas
-- [ ] Crear `Views\SettingsWindow.xaml` con:
-  - [ ] ComboBox: Modelo de Whisper (Tiny/Base/Small/Medium) → al cambiar, dispara descarga si no existe.
-  - [ ] ComboBox: Idioma (es/en/pt/fr/auto).
-  - [ ] Hotkey picker: dos ComboBox (Modificador: Left Ctrl/Right Alt/Left Shift/F12/Right Ctrl; Trigger: Space/Enter/F1-F12).
-  - [ ] ComboBox: Micrófono (lista `NAudio.Wave.WaveIn.GetDeviceCapabilities()` con opción "Default").
-  - [ ] CheckBox: ☐ Iniciar con Windows.
-  - [ ] CheckBox: ☐ Pausar en pantalla completa (default ON).
-  - [ ] CheckBox: ☐ Restaurar clipboard después de pegar.
-  - [ ] Botón "Descargar modelo" (muestra progreso inline).
-  - [ ] Botón "Probar hotkey" (mini-campo que muestra si se detecta la combinación).
-  - [ ] Botón "Guardar" + "Cancelar".
-- [ ] Modificar `TrayIconService` para mostrar:
-  - [ ] Estado actual con texto ("⚪ Listo", "🔴 Grabando", "🟡 Procesando").
-  - [ ] Items de menú actualizados dinámicamente según settings (modelo, idioma, checkboxes).
-- [ ] Generar los 4 `.ico` reales con distintos colores (idle=gris, recording=rojo, processing=amarillo, error=naranja).
-- [ ] Animación: tooltip del tray cambia cuando está grabando.
+- [x] Crear `Views\SettingsWindow.xaml` con:
+  - [x] ComboBox: Modelo de Whisper (Tiny/Base/Small/Medium) → al cambiar, dispara descarga si no existe.
+  - [x] ComboBox: Idioma (es/en/pt/fr/auto).
+  - [x] Hotkey picker: dos ComboBox (Modificador: RMenu/LAlt/LCtrl/RCtrl/LShift/RShift; Trigger: Space/Enter/F1–F12).
+  - [x] ComboBox: Micrófono (lista `NAudio.Wave.WaveIn.GetDeviceCapabilities()` con opción "Default").
+  - [x] CheckBox: ☐ Iniciar con Windows.
+  - [x] CheckBox: ☐ Pausar en pantalla completa (default ON).
+  - [x] CheckBox: ☐ Restaurar clipboard después de pegar.
+  - [x] Botón "Descargar modelo" (muestra progreso inline).
+  - [x] Botón "Probar hotkey" (mini-campo que muestra si se detecta la combinación).
+  - [x] Botón "Guardar" + "Cancelar".
+- [x] Modificar `TrayIconService` para mostrar:
+  - [x] Estado actual con texto ("⚪ Listo", "🔴 Grabando", "🟡 Procesando").
+  - [x] Items de menú actualizados dinámicamente según settings (modelo, idioma, checkboxes).
+- [x] Generar los 4 `.ico` reales con distintos colores (idle=gris, recording=rojo, processing=amarillo, error=naranja).
+- [x] Animación: tooltip del tray cambia cuando está grabando.
+- [x] **Indicador flotante de estado cerca del cursor** (promovido del backlog post-MVP):
+  - [x] Crear `Services\CursorIndicatorService.cs` con ventana WPF transparente
+        (`WindowStyle=None`, `AllowsTransparency=true`, `Topmost=true`,
+        `ShowActivated=false`, `IsHitTestVisible=false`, `ShowInTaskbar=false`).
+  - [x] P/Invoke `GetCursorPos` (en `SendInputInterop.cs` o nuevo `Native\CursorInterop.cs`).
+  - [x] `DispatcherTimer` (~30 fps) que sigue al cursor y reposiciona la ventana en
+        `cursor + (20, 20)` DIPs. Conversión píxel-físico → DIP vía
+        `PresentationSource.CompositionTarget.TransformToDevice`.
+  - [x] Clamp al `WorkingArea` del monitor actual (vía `MonitorFromPoint`): si
+        `y + 48 > bottom` del monitor, reflejar a `y - 48` para que el indicador
+        no se salga de pantalla.
+  - [x] Forma: círculo de 16×16 DIPs (reducido desde 28×28 original). Estados visibles:
+    - [x] `Recording` → rojo `#E53935` con animación **pulse** (opacity 1.0 → 0.5 → 1.0, ~900 ms).
+    - [x] `Processing` → ámbar `#FFB300` con animación **pulse** (opacity 0.5 → 1.0, ~600 ms — más rápido que Recording para diferenciar). Rotación eliminada: el RenderTransform sobre la Ellipse hacía que el bounding box rotado se extendiera ~4 DIPs más allá del frame 16×16 de la Window, y WPF lo clipaba a la forma de Pac-Man.
+    - [x] `Error` → rojo oscuro `#B71C1C`, estático.
+    - [x] `Idle` y `NotReady` → ventana oculta, timer detenido.
+  - [x] `Show(state)` / `Hide()` públicos. El timer se detiene en `Hide()` para no consumir CPU.
+  - [x] Inyectar `CursorIndicatorService` en `RecordingOrchestrator` y centralizar
+        los `SetState` para invocar tray + indicador en un solo `Dispatcher` call
+        (conserva el threading correcto para ambos).
+  - [x] Registrar en DI como singleton y eager-resolve en `App.OnStartup` para
+        que la ventana esté pre-creada cuando se dispare el primer `Show`.
 
 ### Verificación
-- [ ] Abrir Settings desde tray. Cambiar hotkey a F12. Guardar.
-- [ ] Mantener F12 (sin AltGr) graba. AltGr+Space ya no graba.
-- [ ] Cambiar modelo a base. Se descarga. Funciona (un poco menos preciso).
-- [ ] Cambiar idioma a "auto". Transcribe correctamente un audio en inglés.
-- [ ] Marcar "Iniciar con Windows". Aparece en `regedit HKCU\...\Run`.
-- [ ] Desmarcar. Desaparece.
-- [ ] Marcar "Pausar en pantalla completa". Poner Chrome fullscreen. Hotkey deja de funcionar.
-- [ ] Salir de fullscreen. Hotkey vuelve a funcionar.
+- [x] Abrir Settings desde tray. Cambiar hotkey a F12. Guardar.
+- [x] Mantener F12 (sin AltGr) graba. AltGr+Space ya no graba.
+- [x] Cambiar modelo a base. Se descarga. Funciona (un poco menos preciso).
+- [x] Cambiar idioma a "auto". Transcribe correctamente un audio en inglés.
+- [x] Marcar "Iniciar con Windows". Aparece en `regedit HKCU\...\Run`.
+- [x] Desmarcar. Desaparece.
+- [x] Marcar "Pausar en pantalla completa". Poner Chrome fullscreen. Hotkey deja de funcionar.
+- [x] Salir de fullscreen. Hotkey vuelve a funcionar.
+- [x] **Indicador de cursor:**
+  - [x] Mantener AltGr+Space. Aparece círculo rojo pulsante a ~20 px abajo-derecha del cursor.
+  - [x] Soltar. El círculo cambia a ámbar pulsando más rápido (~600 ms) mientras Whisper procesa.
+  - [x] Al terminar la inyección, el indicador desaparece.
+  - [x] Mover el cursor durante la grabación: el indicador lo sigue sin lag visible.
+  - [x] El indicador **NO** quita el foco del campo donde está el usuario
+        (verificar en Notepad/Chrome que el caret sigue visible y se sigue escribiendo).
+  - [x] Con el cursor en el borde inferior de la pantalla, el indicador se refleja hacia arriba y sigue visible.
+  - [x] En multi-monitor (DPI mixto), el indicador aparece a la distancia correcta del cursor en cada pantalla.
+
+> **Nota:** durante la implementación de F6, el indicador de cursor se ajustó
+> respecto al plan original: tamaño reducido de 28×28 a 16×16 DIPs (mejor
+> relación con el cursor), y la animación de Processing cambió de rotación
+> a pulse opacity más rápido (la rotación causaba clipping en el frame de
+> la Window). También se expandió el conjunto de modificadores de hotkey
+> (RMenu/LAlt/LCtrl/RCtrl/LShift/RShift) y se quitó F12 de modificadores
+> (queda solo en trigger).
 
 ---
 

@@ -8,6 +8,7 @@ using Microsoft.Extensions.Http;
 using VoiceTyper.Models;
 using VoiceTyper.Native;
 using VoiceTyper.Services;
+using VoiceTyper.ViewModels;
 using VoiceTyper.Views;
 
 namespace VoiceTyper;
@@ -40,11 +41,15 @@ public partial class App : Application
             {
                 services.AddSingleton<TrayIconService>();
                 services.AddSingleton<MainWindow>();
+                services.AddTransient<SettingsViewModel>();
+                services.AddTransient<SettingsWindow>();
                 services.AddSingleton<LowLevelKeyboardHook>();
                 services.AddSingleton<HotkeyService>();
                 services.AddSingleton<AudioRecorderService>();
                 services.AddSingleton<SettingsService>();
                 services.AddSingleton<LoggerService>();
+                services.AddSingleton<AutoStartService>();
+                services.AddSingleton<CursorIndicatorService>();
                 services.AddHttpClient<ModelManagerService>(c => c.Timeout = TimeSpan.FromMinutes(10));
                 services.AddSingleton<TranscriberService>();
                 services.AddSingleton<TextInjectorService>();
@@ -57,9 +62,88 @@ public partial class App : Application
         _host.Services.GetRequiredService<LoggerService>();
         _host.Services.GetRequiredService<TranscriberService>();
         _host.Services.GetRequiredService<TextInjectorService>();
+        _host.Services.GetRequiredService<AutoStartService>();
+        _host.Services.GetRequiredService<CursorIndicatorService>();
+        _host.Services.GetRequiredService<HotkeyService>();
         _host.Services.GetRequiredService<RecordingOrchestrator>();
 
+        WireTrayEvents();
+        ApplyStartupSettings();
+
         _ = EnsureModelAndStartAsync();
+    }
+
+    private void ApplyStartupSettings()
+    {
+        if (_host is null) return;
+        var settings = _host.Services.GetRequiredService<SettingsService>();
+        var autoStart = _host.Services.GetRequiredService<AutoStartService>();
+        var hotkey = _host.Services.GetRequiredService<HotkeyService>();
+        var tray = _host.Services.GetRequiredService<TrayIconService>();
+        var modelMgr = _host.Services.GetRequiredService<ModelManagerService>();
+
+        hotkey.ApplySettings(settings.Current);
+        autoStart.SyncTo(settings.Current.AutoStart);
+        tray.BuildContextMenu(settings.Current, modelMgr.IsModelAvailable(settings.Current.Model));
+
+        settings.Changed += s =>
+        {
+            hotkey.ApplySettings(s);
+            autoStart.SyncTo(s.AutoStart);
+            tray.UpdateAutoStartInMenu(s.AutoStart);
+            tray.UpdatePauseOnFullscreenInMenu(s.PauseOnFullscreen);
+            tray.UpdateModelInMenu(s.Model);
+            tray.UpdateLanguageInMenu(s.Language);
+            tray.UpdateRetryDownloadVisibility(modelMgr.IsModelAvailable(s.Model));
+        };
+    }
+
+    private void WireTrayEvents()
+    {
+        if (_host is null) return;
+        var tray = _host.Services.GetRequiredService<TrayIconService>();
+        var settings = _host.Services.GetRequiredService<SettingsService>();
+        var modelMgr = _host.Services.GetRequiredService<ModelManagerService>();
+        var autoStart = _host.Services.GetRequiredService<AutoStartService>();
+        var hotkey = _host.Services.GetRequiredService<HotkeyService>();
+
+        tray.OpenSettingsRequested += () => OnOpenSettings(this, new RoutedEventArgs());
+        tray.RetryDownloadRequested += () => OnRetryDownload(this, new RoutedEventArgs());
+        tray.AboutRequested += () => OnAbout(this, new RoutedEventArgs());
+        tray.ExitRequested += () => OnExit(this, new RoutedEventArgs());
+
+        tray.ModelChangeRequested += m =>
+        {
+            var updated = settings.Current;
+            updated.Model = m;
+            settings.Save(updated);
+            if (!modelMgr.IsModelAvailable(m))
+            {
+                _ = EnsureModelAndStartAsync();
+            }
+        };
+
+        tray.LanguageChangeRequested += l =>
+        {
+            var updated = settings.Current;
+            updated.Language = l;
+            settings.Save(updated);
+        };
+
+        tray.AutoStartToggleRequested += enabled =>
+        {
+            var updated = settings.Current;
+            updated.AutoStart = enabled;
+            autoStart.SyncTo(enabled);
+            settings.Save(updated);
+        };
+
+        tray.PauseOnFullscreenToggleRequested += enabled =>
+        {
+            var updated = settings.Current;
+            updated.PauseOnFullscreen = enabled;
+            settings.Save(updated);
+        };
     }
 
     protected override void OnExit(ExitEventArgs e)
@@ -99,6 +183,7 @@ public partial class App : Application
             Log.Info($"[Startup] model {model} already on disk, skipping download");
             hotkey.IsReady = true;
             hotkey.Start();
+            tray.UpdateRetryDownloadVisibility(true);
             Dispatcher.Invoke(() => tray.SetState(RecordingState.Idle));
             return;
         }
@@ -151,6 +236,7 @@ public partial class App : Application
 
             hotkey.IsReady = true;
             hotkey.Start();
+            tray.UpdateRetryDownloadVisibility(true);
             Dispatcher.Invoke(() => tray.SetState(RecordingState.Idle));
         }
         catch (OperationCanceledException)
@@ -182,13 +268,15 @@ public partial class App : Application
     private void OnOpenSettings(object sender, RoutedEventArgs e)
     {
         if (_host is null) return;
-        var main = _host.Services.GetRequiredService<MainWindow>();
-        if (!main.IsVisible)
+        try
         {
-            main.Show();
+            var window = _host.Services.GetRequiredService<SettingsWindow>();
+            window.ShowDialog();
         }
-        main.WindowState = WindowState.Normal;
-        main.Activate();
+        catch (Exception ex)
+        {
+            Log.Error($"[App] OnOpenSettings failed: {ex.Message}");
+        }
     }
 
     private void OnRetryDownload(object sender, RoutedEventArgs e)
@@ -219,6 +307,7 @@ public partial class App : Application
                 hotkey.Start();
             }
             tray.SetState(RecordingState.Idle);
+            tray.UpdateRetryDownloadVisibility(true);
             Log.Info("[Tray] Reintentar descarga: model already present, hook started");
             return;
         }

@@ -5,15 +5,5 @@
              xmlns:tb="http://www.hardcodet.net/taskbar"
              ShutdownMode="OnExplicitShutdown">
     <Application.Resources>
-        <ResourceDictionary>
-            <ContextMenu x:Key="TrayContextMenu" x:Shared="false">
-                <MenuItem Header="Configuración…" Click="OnOpenSettings" />
-                <MenuItem Header="Reintentar descarga" Click="OnRetryDownload" />
-                <Separator />
-                <MenuItem Header="Acerca de…" Click="OnAbout" />
-                <Separator />
-                <MenuItem Header="Salir" Click="OnExit" />
-            </ContextMenu>
-        </ResourceDictionary>
     </Application.Resources>
 </Application>

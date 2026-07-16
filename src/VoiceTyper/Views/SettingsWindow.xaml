@@ -1,0 +1,152 @@
+<Window x:Class="VoiceTyper.Views.SettingsWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+        xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+        xmlns:local="clr-namespace:VoiceTyper.Views"
+        xmlns:vm="clr-namespace:VoiceTyper.ViewModels"
+        mc:Ignorable="d"
+        Title="VoiceTyper — Configuración"
+        Width="560" Height="640"
+        MinWidth="500" MinHeight="540"
+        WindowStartupLocation="CenterScreen"
+        ResizeMode="CanResize"
+        ShowInTaskbar="True">
+    <Window.Resources>
+        <Style x:Key="SectionHeader" TargetType="TextBlock">
+            <Setter Property="FontWeight" Value="SemiBold" />
+            <Setter Property="FontSize" Value="13" />
+            <Setter Property="Foreground" Value="#37474F" />
+            <Setter Property="Margin" Value="0,12,0,4" />
+        </Style>
+        <Style x:Key="FieldLabel" TargetType="TextBlock">
+            <Setter Property="FontSize" Value="12" />
+            <Setter Property="Margin" Value="0,4,0,2" />
+        </Style>
+        <Style x:Key="FieldHint" TargetType="TextBlock">
+            <Setter Property="FontSize" Value="11" />
+            <Setter Property="Foreground" Value="#78909C" />
+            <Setter Property="TextWrapping" Value="Wrap" />
+        </Style>
+    </Window.Resources>
+
+    <Grid Margin="20">
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="*" />
+            <RowDefinition Height="Auto" />
+        </Grid.RowDefinitions>
+
+        <StackPanel Grid.Row="0">
+            <TextBlock Text="Configuración de VoiceTyper"
+                       FontSize="18" FontWeight="Bold" />
+            <TextBlock Text="Los cambios se aplican al guardar."
+                       Style="{StaticResource FieldHint}" Margin="0,2,0,0" />
+        </StackPanel>
+
+        <ScrollViewer Grid.Row="1" VerticalScrollBarVisibility="Auto" Margin="0,12,0,0">
+            <StackPanel>
+
+                <TextBlock Text="Modelo de Whisper" Style="{StaticResource SectionHeader}" />
+                <Grid Margin="0,4,0,0">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="*" />
+                        <ColumnDefinition Width="Auto" />
+                    </Grid.ColumnDefinitions>
+                    <ComboBox Grid.Column="0"
+                              ItemsSource="{Binding ModelOptions}"
+                              SelectedItem="{Binding SelectedModel}"
+                              Height="28" />
+                    <Button Grid.Column="1"
+                            Content="Descargar"
+                            Command="{Binding DownloadModelCommand}"
+                            Width="100" Height="28"
+                            Margin="8,0,0,0"
+                            IsEnabled="{Binding IsModelDownloaded, Converter={x:Static local:InverseBoolConverter.Instance}, FallbackValue=False}" />
+                </Grid>
+                <TextBlock Text="{Binding DownloadStatus}"
+                           Style="{StaticResource FieldHint}"
+                           Margin="0,4,0,0" />
+                <ProgressBar Minimum="0" Maximum="100"
+                             Value="{Binding DownloadPercent, Mode=OneWay}"
+                             Height="6" Margin="0,4,0,0"
+                             Visibility="{Binding IsModelDownloading, Converter={x:Static local:BoolToVisibilityConverter.Instance}}" />
+
+                <TextBlock Text="Idioma" Style="{StaticResource SectionHeader}" />
+                <ComboBox ItemsSource="{Binding LanguageOptions}"
+                          SelectedValuePath="Code"
+                          DisplayMemberPath="DisplayName"
+                          SelectedValue="{Binding SelectedLanguage}"
+                          Height="28" />
+
+                <TextBlock Text="Hotkey" Style="{StaticResource SectionHeader}" />
+                <Grid>
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="*" />
+                        <ColumnDefinition Width="8" />
+                        <ColumnDefinition Width="*" />
+                    </Grid.ColumnDefinitions>
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="Auto" />
+                        <RowDefinition Height="Auto" />
+                    </Grid.RowDefinitions>
+                    <TextBlock Grid.Row="0" Grid.Column="0" Text="Modificador" Style="{StaticResource FieldLabel}" />
+                    <TextBlock Grid.Row="0" Grid.Column="2" Text="Trigger" Style="{StaticResource FieldLabel}" />
+                    <ComboBox Grid.Row="1" Grid.Column="0"
+                              ItemsSource="{Binding ModifierOptions}"
+                              SelectedValuePath="Name"
+                              DisplayMemberPath="DisplayName"
+                              SelectedValue="{Binding SelectedHotkeyModifier}"
+                              Height="28" />
+                    <ComboBox Grid.Row="1" Grid.Column="2"
+                              ItemsSource="{Binding TriggerOptions}"
+                              SelectedValuePath="Name"
+                              DisplayMemberPath="DisplayName"
+                              SelectedValue="{Binding SelectedHotkeyTrigger}"
+                              Height="28" />
+                </Grid>
+                <Grid Margin="0,8,0,0">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="Auto" />
+                        <ColumnDefinition Width="*" />
+                    </Grid.ColumnDefinitions>
+                    <Button Grid.Column="0" Content="Probar hotkey"
+                            Command="{Binding TestHotkeyCommand}"
+                            IsEnabled="{Binding IsTestingHotkey, Converter={x:Static local:InverseBoolConverter.Instance}}"
+                            Width="120" Height="28" />
+                    <TextBlock Grid.Column="1"
+                               Text="{Binding TestHotkeyFeedback}"
+                               Foreground="{Binding TestHotkeyFeedbackColor}"
+                               FontWeight="SemiBold"
+                               VerticalAlignment="Center" Margin="10,0,0,0" />
+                </Grid>
+
+                <TextBlock Text="Micrófono" Style="{StaticResource SectionHeader}" />
+                <ComboBox ItemsSource="{Binding MicrophoneOptions}"
+                          SelectedValuePath="Index"
+                          DisplayMemberPath="DisplayName"
+                          SelectedValue="{Binding SelectedMicrophoneIndex}"
+                          Height="28" />
+
+                <TextBlock Text="Opciones" Style="{StaticResource SectionHeader}" />
+                <CheckBox Content="Iniciar con Windows"
+                          IsChecked="{Binding AutoStartEnabled}"
+                          Margin="0,2,0,0" />
+                <CheckBox Content="Pausar en pantalla completa (juegos fullscreen)"
+                          IsChecked="{Binding PauseOnFullscreen}"
+                          Margin="0,2,0,0" />
+                <CheckBox Content="Restaurar clipboard después de pegar"
+                          IsChecked="{Binding RestoreClipboard}"
+                          Margin="0,2,0,0" />
+            </StackPanel>
+        </ScrollViewer>
+
+        <StackPanel Grid.Row="2" Orientation="Horizontal"
+                    HorizontalAlignment="Right" Margin="0,16,0,0">
+            <Button Content="Cancelar" Width="90" Height="30"
+                    IsCancel="True" Click="OnCancel" />
+            <Button Content="Guardar" Width="90" Height="30" Margin="8,0,0,0"
+                    IsDefault="True" Click="OnSave" />
+        </StackPanel>
+    </Grid>
+</Window>

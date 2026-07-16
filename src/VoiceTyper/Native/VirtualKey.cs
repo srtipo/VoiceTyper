@@ -3,5 +3,25 @@ namespace VoiceTyper.Native;
 public enum VirtualKey : ushort
 {
     Space = 0x20,
-    RMenu = 0xA5
+    Enter = 0x0D,
+
+    LShift = 0xA0,
+    RShift = 0xA1,
+    LCtrl = 0xA2,
+    RCtrl = 0xA3,
+    LAlt = 0xA4,
+    RMenu = 0xA5,
+
+    F1 = 0x70,
+    F2 = 0x71,
+    F3 = 0x72,
+    F4 = 0x73,
+    F5 = 0x74,
+    F6 = 0x75,
+    F7 = 0x76,
+    F8 = 0x77,
+    F9 = 0x78,
+    F10 = 0x79,
+    F11 = 0x7A,
+    F12 = 0x7B
 }

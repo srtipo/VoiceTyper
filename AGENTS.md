@@ -9,11 +9,12 @@ cursor. Funciona en cualquier app: Notepad, Chrome, VSCode, Slack, Word.
 - Stack: WPF + `Hardcodet.NotifyIcon.Wpf` + `Microsoft.Extensions.Hosting` (DI) + `CommunityToolkit.Mvvm`.
 
 ## Estado actual
-**Fases 0–5 completadas** (bootstrap, esqueleto WPF + tray, hook global
-AltGr+Space, captura NAudio, Whisper.net, **inyección de texto con
-`SendInput` Unicode + fallback `WM_PASTE`**). Fases 6–7 pendientes
-(settings window, empaquetado). `MainWindow.xaml` es placeholder. Hoy:
-tray + hotkey + grabar audio + transcribir + inyectar texto donde esté
+**Fases 0–6 completadas** (bootstrap, esqueleto WPF + tray, hook global
+AltGr+Space, captura NAudio, Whisper.net, inyección de texto con
+`SendInput` Unicode + fallback `WM_PASTE`, **Settings window + cursor
+indicator + auto-start + tray menu dinámico**). F7 pendiente
+(empaquetado). `MainWindow.xaml` es placeholder. Hoy: tray + hotkey
+configurable + grabar audio + transcribir + inyectar texto donde esté
 el cursor (probado en Notepad moderno).
 
 ## Comandos
@@ -31,20 +32,28 @@ src/VoiceTyper/
   App.xaml(.cs)              ← entrypoint; Mutex + DI host + tray
   MainWindow.xaml(.cs)       ← placeholder; OnClosing cancela y oculta
   Services/TrayIconService.cs
+  Services/CursorIndicatorService.cs ← ventana flotante cerca del cursor (F6)
   Services/HotkeyService.cs         ← reset ConsumeNextKeyDown on stop
   Services/TextInjectorService.cs   ← dispatch UI thread + SendText/WM_PASTE
-  Models/RecordingState.cs   ← enum { Idle, Recording, Processing, Error }
+  Services/AutoStartService.cs      ← Registry HKCU Run (F6)
+  Services/SettingsService.cs       ← AppSettings + Changed event
+  ViewModels/SettingsViewModel.cs   ← MVVM para SettingsWindow (F6)
+  Views/SettingsWindow.xaml(.cs)    ← UI de configuración (F6)
+  Views/ModelDownloadWindow.xaml(.cs)← ventana modal de descarga (F4)
+  Models/RecordingState.cs   ← enum { Idle, Recording, Processing, Error, NotReady }
   Resources/                 ← app.ico + tray-{idle,recording,processing,error}.ico
   app.manifest               ← asInvoker, sin UAC, PerMonitorV2 DPI
   VoiceTyper.csproj          ← net8.0-windows, WinExe, Nullable+ImplicitUsings
   Native/SendInputInterop.cs        ← SendText con KEYEVENTF_UNICODE
   Native/ClipboardInterop.cs        ← Backup/Set/Restore via WPF Clipboard
   Native/ClipboardInjector.cs       ← SendMessage WM_PASTE (fallback)
+  Native/CursorInterop.cs           ← GetCursorPos/MonitorFromPoint (F6)
+  Native/VirtualKey.cs              ← enum VK (Space, RMenu, F1–F12, etc.)
 ```
 
-No existen aún (F6–F7): `Views/SettingsWindow.xaml(.cs)`,
-`install.bat` / `uninstall.bat`. Cuando los creas, seguí las convenciones
-descritas abajo y el desglose de `phases.md` para esa fase.
+No existe aún (F7): `install.bat` / `uninstall.bat`. Cuando los crees,
+seguí las convenciones descritas abajo y el desglose de `phases.md` para
+esa fase.
 
 ## Gotchas no obvios
 
@@ -53,13 +62,15 @@ descritas abajo y el desglose de `phases.md` para esa fase.
 - **Single-instance.** `App.OnStartup` toma un Mutex con nombre `Global\VoiceTyper_SingleInstance_v1`; la segunda instancia llama `Shutdown(0)`. Si renombrás la constante, no la dejes inconsistente.
 - **Ciclo de vida.** `App.xaml` define `ShutdownMode="OnExplicitShutdown"` — la app sobrevive sin ventanas. El botón X de `MainWindow` cancela el cierre y oculta (`OnClosing` → `e.Cancel = true; Hide();`). La única salida limpia es el ítem "Salir" del menú del tray.
 - **DI.** El host se arma en `App.OnStartup` con `Host.CreateDefaultBuilder().ConfigureServices(...)`. Los servicios nuevos se registran ahí como singletons. `TrayIconService` se resuelve **eager** (se llama `GetRequiredService` apenas se construye) para que el icono aparezca apenas arranca.
-- **ContextMenu del tray.** Vive como `ResourceDictionary` en `App.xaml` bajo la clave `TrayContextMenu` (`x:Shared="false"`). `TrayIconService` lo obtiene con `Application.Current.FindResource("TrayContextMenu")`. Los handlers de los `MenuItem` (`OnOpenSettings`, `OnAbout`, `OnExit`) están en `App.xaml.cs` y acceden al host vía el campo `_host`; si necesitás estado del host, pasalo por ahí, no por `App.Current.MainWindow` (suele ser null).
+- **ContextMenu del tray.** Desde F6, se construye en **code-behind** dentro de `TrayIconService.BuildContextMenu(AppSettings, bool)`. No hay más `ResourceDictionary` en `App.xaml`. `TrayIconService` expone eventos (`OpenSettingsRequested`, `ModelChangeRequested`, `LanguageChangeRequested`, `AutoStartToggleRequested`, `PauseOnFullscreenToggleRequested`, `ExitRequested`, etc.) que `App.xaml.cs` suscribe y enruta a los servicios correspondientes (`SettingsService.Save`, `HotkeyService.ApplySettings`, `AutoStartService.SyncTo`, `ModelManagerService.EnsureModelAsync`). El estado se accede vía el campo `_host`, no vía `App.Current.MainWindow` (suele ser null).
 - **Iconos del tray.** `ApplicationIcon` del exe es `Resources\app.ico`. Los cuatro `tray-*.ico` se mapean desde `RecordingState` en `TrayIconService.SetState`. Se cargan con `pack://application:,,,/Resources/{name}.ico` (mayúscula en `Resources`); `LoadIcon` tiene un fallback a minúscula — no lo borres sin verificar primero.
 - **Threading de tray.** Las llamadas a `TaskbarIcon` deben hacerse en el thread de UI. `TrayIconService.SetState` / `ShowBalloon` hoy no son thread-safe; si la transcripción/hook corre en background, marshalizá con `Application.Current.Dispatcher.Invoke`.
 - **Empaquetado pendiente (F7).** El .csproj todavía **no** tiene `RuntimeIdentifier`, `PublishSingleFile`, `SelfContained`, `IncludeNativeLibrariesForSelfExtract` ni `EnableCompressionInSingleFile`. No los agregues antes de tiempo.
 - **SendInput debe correr en el UI thread.** `SendInput` desde threadpool hace que apps modernas (WinUI, XAML, algunos Electron) ignoren el input. `TextInjectorService` dispatchea al `Application.Current.Dispatcher` antes de cualquier `SendInput`/`SendMessage`.
 - **Text injection: Unicode SendInput, no WM_PASTE.** Controles WinUI/XAML (Notepad moderno, `RichEditBox` UWP, etc.) tienen paste protection que ignora `WM_PASTE` sintetizado. `SendInputInterop.SendText` con `KEYEVENTF_UNICODE` bypassea eso enviando `WM_UNICHAR` por char. `WM_PASTE` queda solo como fallback en `ClipboardInjector.SendPaste`.
 - **Hook consume flag: reset en `OnHookKeyUp`.** `ConsumeNextKeyDown` se setea en `true` cada 20ms por `HotkeyService.ConsumeLoopAsync` mientras `IsRecording`. Si no se resetea al terminar la grabación, el flag residual se come el primer keydown sintetizado por el `SendInput` post-transcripción y la inyección se rompe silenciosamente. Ver `HotkeyService.OnHookKeyUp:93`.
+- **Cursor indicator: no roba foco.** La ventana de `CursorIndicatorService` debe tener `ShowActivated=false` e `IsHitTestVisible=false`. Sin esto, cada vez que se hace `Show()` el caret del control destino (Notepad, Chrome, etc.) se mueve fuera del campo y la inyección posterior de `SendInput` se va al vacío. También lleva `Topmost=true` para no quedar tapada por overlays de otras apps. **Tamaño 16×16 DIPs** (reducido desde 28×28 original). **Animación: solo pulse opacity** — Recording a 0.9 s, Processing a 0.6 s. La rotación fue removida porque el `RenderTransform` sobre la Ellipse hacía que el bounding box rotado se extendiera más allá del frame de la Window y WPF lo clipaba (forma de Pac-Man). Si querés diferenciar visualmente Processing de Recording, cambiá el color o la frecuencia del pulse, no agregues rotación.
+- **AutoStart vía Registry.** `AutoStartService` escribe `HKCU\Software\Microsoft\Windows\CurrentVersion\Run\VoiceTyper` con el path absoluto del exe + flag `--autostart`. No requiere elevación (HKCU). Al iniciar la app, `SyncTo(settings.AutoStart)` reconcilia el estado del registry con la setting (corrige drift si el usuario editó el registry a mano).
 
 ## Gitignore: trampa con `models/`
 
