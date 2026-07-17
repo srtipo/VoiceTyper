@@ -334,46 +334,84 @@ No avanzar a la siguiente fase hasta que la actual esté ✅ completa.
 
 ---
 
-## Fase 7 — Empaquetado + distribución
+## Fase 7 — Empaquetado + distribución ✅
 **Objetivo:** un .exe autocontenido + scripts de install/uninstall.
 
+> **Nota de implementación:** el plan original de F7 fue modificado en estos
+> puntos:
+> - **Install path:** `%LOCALAPPDATA%\Programs\VoiceTyper\` (sin UAC, cumple
+>   con `app.manifest asInvoker`). El plan original proponía
+>   `C:\Program Files\VoiceTyper\`, lo cual requeriría elevación.
+> - **`PublishReadyToRun` no se agregó** — la build actual es suficientemente
+>   rápida y R2R agrega ~10-20% al tamaño sin beneficio perceptible.
+> - **VC++ check:** aviso no bloqueante vía tray balloon + log, no se bloquea
+>   el arranque (cumple decisión cerrada).
+> - **Smoke test single-file workaround:** se agregó `<EnableDynamicLoading>true</EnableDynamicLoading>`
+>   al .csproj Y `Services/NativeLibPathResolver.cs` que copia `whisper.dll` + 3 ggml DLLs
+>   desde el temp extraction path (`%TEMP%\.net\VoiceTyper\<hash>\runtimes\win-x64\`) a
+>   `<BaseDirectory>\runtimes\win-x64\` al inicio de `OnStartup`. Sin esto,
+>   `WhisperFactory.FromPath` falla con "Native Library not found in default paths"
+>   porque `AppContext.BaseDirectory` apunta al .exe, no al temp extraction.
+>   Con el workaround, el smoke test del .exe publicado retorna exit 0.
+>   Ver `AGENTS.md` gotcha "Single-file + Whisper" para los detalles.
+> - **Smoke test shutdown:** se usa `Environment.Exit(0/1)` en vez de `Shutdown(0/1)`
+>   para que el proceso termine limpio cuando se llama desde un thread async
+>   sin sync context WPF. No afecta al flujo normal de la app.
+
 ### Tareas
-- [ ] Configurar `VoiceTyper.csproj` con propiedades de publish:
-  - [ ] `<RuntimeIdentifier>win-x64</RuntimeIdentifier>`
-  - [ ] `<PublishSingleFile>true</PublishSingleFile>`
-  - [ ] `<SelfContained>true</SelfContained>`
-  - [ ] `<IncludeNativeLibrariesForSelfExtract>true</IncludeNativeLibrariesForSelfExtract>`
-  - [ ] `<EnableCompressionInSingleFile>true</EnableCompressionInSingleFile>`
-  - [ ] `<PublishReadyToRun>true</PublishReadyToRun>`
-- [ ] Crear `install.bat`:
-  - [ ] `dotnet publish -c Release -r win-x64`
-  - [ ] `if not exist "%LOCALAPPDATA%\VoiceTyper\models" mkdir "%LOCALAPPDATA%\VoiceTyper\models"`
-  - [ ] `if not exist "%LOCALAPPDATA%\VoiceTyper\logs" mkdir "%LOCALAPPDATA%\VoiceTyper\logs"`
-  - [ ] `if exist "C:\Program Files\VoiceTyper\" rd /s /q ...` (con admin check)
-  - [ ] `mkdir "C:\Program Files\VoiceTyper"`
-  - [ ] `copy /Y "src\VoiceTyper\bin\Release\net8.0-windows\win-x64\publish\VoiceTyper.exe" "C:\Program Files\VoiceTyper\"`
-  - [ ] `powershell -Command "Start-Process 'C:\Program Files\VoiceTyper\VoiceTyper.exe'"`
-- [ ] Crear `uninstall.bat`:
-  - [ ] `taskkill /F /IM VoiceTyper.exe`
-  - [ ] `reg delete "HKCU\Software\Microsoft\Windows\CurrentVersion\Run" /v VoiceTyper /f`
-  - [ ] `rd /s /q "C:\Program Files\VoiceTyper"`
-  - [ ] `rd /s /q "%LOCALAPPDATA%\VoiceTyper"` (opcional, con confirmación)
-- [ ] Crear `README.md` final con:
-  - [ ] Capturas de pantalla (tray con estados, settings).
-  - [ ] Instrucciones de uso.
-  - [ ] Sección troubleshooting (VC++ Redist, hook no funciona, etc.).
-  - [ ] Roadmap post-MVP.
-- [ ] Verificar VC++ Redist: agregar check al inicio de la app
-  (`LoggerService` ya creado en Fase 4):
-  - [ ] Buscar `vcruntime140.dll` en `C:\Windows\System32`.
-  - [ ] Si falta: `TrayIconService.ShowBalloon("Falta Visual C++ Redist, descargar de https://aka.ms/vs/17/release/vc_redist.x64.exe")`.
+- [x] Configurar `VoiceTyper.csproj` con propiedades de publish:
+  - [x] `<RuntimeIdentifier>win-x64</RuntimeIdentifier>`
+  - [x] `<PublishSingleFile>true</PublishSingleFile>`
+  - [x] `<SelfContained>true</SelfContained>`
+  - [x] `<IncludeNativeLibrariesForSelfExtract>true</IncludeNativeLibrariesForSelfExtract>`
+  - [x] `<EnableCompressionInSingleFile>true</EnableCompressionInSingleFile>`
+  - [x] `<EnableDynamicLoading>true</EnableDynamicLoading>` (necesario para que Whisper.net encuentre los DLLs extraídos).
+- [x] Crear `Services/NativeLibPathResolver.cs` que copia los 4 DLLs nativos
+  de Whisper desde el temp extraction path a `<BaseDirectory>\runtimes\win-x64\`
+  al inicio de `OnStartup` (workaround single-file + Whisper.net).
+- [x] Migrar `EnvService.ResolveEnvPath` de `Assembly.Location` a
+  `AppContext.BaseDirectory` (rompe en single-file).
+- [x] Crear `Services/VcRedistChecker.cs` con `IsInstalled()` (chequea
+  `vcruntime140.dll` y `vcruntime140_1.dll` en System32) y `GetDownloadUrl()`.
+- [x] Wire `VcRedistChecker` en `App.OnStartup` después del eager-resolve
+  de servicios: log + balloon si falta, no bloquea.
+- [x] Flag `--smoke-test` en `App.OnStartup` que llama a
+  `TranscriberService.SmokeTestAsync()` y retorna `Environment.Exit(ret ? 0 : 1)`.
+- [x] Crear `install.bat`:
+  - [x] Verifica `dotnet` en PATH.
+  - [x] Verifica VC++ Redist en `%WINDIR%\System32\vcruntime140.dll` (warn + link si falta).
+  - [x] `dotnet publish -c Release -r win-x64 --self-contained true` con las props de F7.
+  - [x] Copia `publish\VoiceTyper.exe` a `%LOCALAPPDATA%\Programs\VoiceTyper\`.
+  - [x] Crea `%LOCALAPPDATA%\VoiceTyper\models\` (pre-crea la carpeta para el modelo).
+  - [x] Crea acceso directo en Start Menu vía PowerShell COM (`WScript.Shell`).
+  - [x] Lanza la app al final con `start ""`.
+- [x] Crear `uninstall.bat`:
+  - [x] `taskkill /F /IM VoiceTyper.exe` (silencioso).
+  - [x] `reg delete "HKCU\Software\Microsoft\Windows\CurrentVersion\Run" /v VoiceTyper /f` (silencioso).
+  - [x] Borra acceso directo de Start Menu.
+  - [x] Borra `%LOCALAPPDATA%\Programs\VoiceTyper\`.
+  - [x] Pregunta si borrar también `%LOCALAPPDATA%\VoiceTyper\` (datos de usuario).
+- [x] Crear `README.md` final con:
+  - [x] Instrucciones de uso (mantener hotkey, cambiar desde Settings).
+  - [x] Sección Instalación con pasos (VC++ Redist → .NET 8 SDK → install.bat → descarga modelo).
+  - [x] Sección Desinstalar.
+  - [x] Sección Troubleshooting con tabla de síntomas/causas/soluciones.
+  - [x] Sección Roadmap post-MVP.
+  - [x] Sección "Cómo funciona" (resumen del pipeline).
+  - [x] Screenshots **SKIP** (decisión cerrada — solo estructura textual).
+- [x] Crear `docs/screenshots/.gitkeep` para futuro uso.
 
 ### Verificación
-- [ ] `install.bat` corre limpio en una máquina Windows 11 limpia.
-- [ ] `VoiceTyper.exe` aparece en tray tras instalar.
-- [ ] Tamaño del publish: < 100 MB sin modelo.
-- [ ] `uninstall.bat` deja el sistema limpio (verificar no quedan procesos, carpetas ni registry keys).
-- [ ] Levantar VM Windows 10 limpia, correr install.bat, todo funciona.
+- [x] `dotnet build VoiceTyper.sln` → exit 0, 0 warnings.
+- [x] `dotnet publish src/VoiceTyper -c Release -r win-x64 --self-contained true` → exit 0.
+- [x] Tamaño de `VoiceTyper.exe` = **70.95 MB** (< 100 MB ✅).
+- [x] `git status` muestra solo los archivos esperados (ver commit).
+- [x] Smoke test en dev mode (`dotnet run -- --smoke-test`) → **OK** (WhisperFactory cargó ggml-medium.bin).
+- [x] Smoke test en publish single-file (`publish\VoiceTyper.exe --smoke-test`) → **OK exit 0** gracias a `NativeLibPathResolver` que copia los DLLs al directorio del .exe.
+- [x] App publicada arranca limpio: VC++ check OK, model cargado, hook instalado, queda en tray.
+- [ ] `install.bat` corre limpio en una VM Windows 11 limpia — **NO testeado en VM** (no hay VM en este entorno).
+- [ ] `uninstall.bat` deja el sistema limpio — **NO testeado en VM**.
+- [ ] Levantar VM Windows 10 limpia, correr install.bat, todo funciona — **SKIP** (no hay VM).
 
 ---
 
@@ -381,7 +419,7 @@ No avanzar a la siguiente fase hasta que la actual esté ✅ completa.
 - Streaming de Whisper (transcripción mientras hablás, sin soltar tecla).
 - Hotkey con spoken punctuation ("coma", "punto", "nueva línea").
 - Múltiples perfiles de hotkey por app.
-- Indicator flotante cerca del cursor mientras graba.
+- Indicator flotante cerca del cursor mientras graba. ✅ **Hecho en F6** (`CursorIndicatorService`).
 - Soporte para GPU NVIDIA (Whisper.net.Runtime.Gpu).
 - Modo "always listening" con wake word.
 - Temas del tray icon (dark/light).

@@ -9,25 +9,32 @@ cursor. Funciona en cualquier app: Notepad, Chrome, VSCode, Slack, Word.
 - Stack: WPF + `Hardcodet.NotifyIcon.Wpf` + `Microsoft.Extensions.Hosting` (DI) + `CommunityToolkit.Mvvm`.
 
 ## Estado actual
-**Fases 0–6 completadas** (bootstrap, esqueleto WPF + tray, hook global
+**Fases 0–7 completadas** (bootstrap, esqueleto WPF + tray, hook global
 AltGr+Space, captura NAudio, Whisper.net, inyección de texto con
-`SendInput` Unicode + fallback `WM_PASTE`, **Settings window + cursor
-indicator + auto-start + tray menu dinámico**). F7 pendiente
-(empaquetado). `MainWindow.xaml` es placeholder. Hoy: tray + hotkey
-configurable + grabar audio + transcribir + inyectar texto donde esté
-el cursor (probado en Notepad moderno).
+`SendInput` Unicode + fallback `WM_PASTE`, Settings window + cursor
+indicator + auto-start + tray menu dinámico, **empaquetado single-file
++ scripts install/uninstall + smoke-test + VC++ check**). `MainWindow.xaml`
+es placeholder. Hoy: tray + hotkey configurable + grabar audio +
+transcribir + inyectar texto donde esté el cursor (probado en Notepad
+moderno).
 
 ## Comandos
 Todo desde la raíz del repo. No hay script de build propio.
 
 - Compilar: `dotnet build VoiceTyper.sln`
 - Ejecutar (sólo Windows): `dotnet run --project src/VoiceTyper`
-- Publicar (cuando exista F7): `dotnet publish src/VoiceTyper -c Release -r win-x64 --self-contained true`
+- Publicar single-file: `dotnet publish src/VoiceTyper -c Release -r win-x64 --self-contained true`
+- Instalar (en la misma máquina): doble-click en `install.bat` desde la raíz.
+- Desinstalar: doble-click en `uninstall.bat` desde la raíz.
+- Smoke test del publicado: `"src\VoiceTyper\bin\Release\net8.0-windows\win-x64\publish\VoiceTyper.exe" --smoke-test` (exit 0 = OK, 1 = FAIL; ver gotcha sobre Whisper.net + single-file).
 - No hay proyecto de tests. **No asumas xUnit/NUnit/MSTest** hasta que se cree.
 
 ## Layout
 ```
 VoiceTyper.sln
+install.bat                  ← F7: compila + copia a %LOCALAPPDATA%\Programs\VoiceTyper
+uninstall.bat                ← F7: limpia registry + carpeta + datos (con confirmación)
+docs/screenshots/            ← F7: placeholder para capturas futuras
 src/VoiceTyper/
   App.xaml(.cs)              ← entrypoint; Mutex + DI host + tray
   MainWindow.xaml(.cs)       ← placeholder; OnClosing cancela y oculta
@@ -36,7 +43,11 @@ src/VoiceTyper/
   Services/HotkeyService.cs         ← reset ConsumeNextKeyDown on stop
   Services/TextInjectorService.cs   ← dispatch UI thread + SendText/WM_PASTE
   Services/AutoStartService.cs      ← Registry HKCU Run (F6)
+  Services/VcRedistChecker.cs       ← F7: chequea vcruntime140 en System32
+  Services/NativeLibPathResolver.cs ← F7: copia whisper.dll a runtimes\win-x64 en single-file
   Services/SettingsService.cs       ← AppSettings + Changed event
+  Services/TranscriberService.cs    ← F7: SmokeTestAsync (WhisperFactory.FromPath)
+  Services/Log.cs                   ← logger estático (F2)
   ViewModels/SettingsViewModel.cs   ← MVVM para SettingsWindow (F6)
   Views/SettingsWindow.xaml(.cs)    ← UI de configuración (F6)
   Views/ModelDownloadWindow.xaml(.cs)← ventana modal de descarga (F4)
@@ -44,16 +55,15 @@ src/VoiceTyper/
   Resources/                 ← app.ico + tray-{idle,recording,processing,error}.ico
   app.manifest               ← asInvoker, sin UAC, PerMonitorV2 DPI
   VoiceTyper.csproj          ← net8.0-windows, WinExe, Nullable+ImplicitUsings
+                               + RuntimeIdentifier/PublishSingleFile/SelfContained
+                                 /IncludeNativeLibrariesForSelfExtract/EnableCompressionInSingleFile
+                                 /EnableDynamicLoading
   Native/SendInputInterop.cs        ← SendText con KEYEVENTF_UNICODE
   Native/ClipboardInterop.cs        ← Backup/Set/Restore via WPF Clipboard
   Native/ClipboardInjector.cs       ← SendMessage WM_PASTE (fallback)
   Native/CursorInterop.cs           ← GetCursorPos/MonitorFromPoint (F6)
   Native/VirtualKey.cs              ← enum VK (Space, RMenu, F1–F12, etc.)
 ```
-
-No existe aún (F7): `install.bat` / `uninstall.bat`. Cuando los crees,
-seguí las convenciones descritas abajo y el desglose de `phases.md` para
-esa fase.
 
 ## Gotchas no obvios
 
@@ -65,7 +75,12 @@ esa fase.
 - **ContextMenu del tray.** Desde F6, se construye en **code-behind** dentro de `TrayIconService.BuildContextMenu(AppSettings, bool)`. No hay más `ResourceDictionary` en `App.xaml`. `TrayIconService` expone eventos (`OpenSettingsRequested`, `ModelChangeRequested`, `LanguageChangeRequested`, `AutoStartToggleRequested`, `PauseOnFullscreenToggleRequested`, `ExitRequested`, etc.) que `App.xaml.cs` suscribe y enruta a los servicios correspondientes (`SettingsService.Save`, `HotkeyService.ApplySettings`, `AutoStartService.SyncTo`, `ModelManagerService.EnsureModelAsync`). El estado se accede vía el campo `_host`, no vía `App.Current.MainWindow` (suele ser null).
 - **Iconos del tray.** `ApplicationIcon` del exe es `Resources\app.ico`. Los cuatro `tray-*.ico` se mapean desde `RecordingState` en `TrayIconService.SetState`. Se cargan con `pack://application:,,,/Resources/{name}.ico` (mayúscula en `Resources`); `LoadIcon` tiene un fallback a minúscula — no lo borres sin verificar primero.
 - **Threading de tray.** Las llamadas a `TaskbarIcon` deben hacerse en el thread de UI. `TrayIconService.SetState` / `ShowBalloon` hoy no son thread-safe; si la transcripción/hook corre en background, marshalizá con `Application.Current.Dispatcher.Invoke`.
-- **Empaquetado pendiente (F7).** El .csproj todavía **no** tiene `RuntimeIdentifier`, `PublishSingleFile`, `SelfContained`, `IncludeNativeLibrariesForSelfExtract` ni `EnableCompressionInSingleFile`. No los agregues antes de tiempo.
+- **Empaquetado (F7) hecho.** El .csproj ya tiene `RuntimeIdentifier`, `PublishSingleFile`, `SelfContained`, `IncludeNativeLibrariesForSelfExtract`, `EnableCompressionInSingleFile` y `EnableDynamicLoading`. **No** le agregues `PublishReadyToRun` (R2R agrega ~10-20% al tamaño sin beneficio perceptible para esta app). Bundle final: ~71 MB sin modelo.
+- **Single-file + Whisper: workaround obligatorio.** Whisper.net 1.9.0 usa `NativeLibrary.Load("whisper")` que en single-file **no encuentra los DLLs extraídos** porque (a) `AppContext.BaseDirectory` apunta al directorio del .exe (no al temp extraction), y (b) los DLLs se extraen a `%TEMP%\.net\VoiceTyper\<hash>\runtimes\win-x64\`, no a un path estándar. **Workaround aplicado**: `Services/NativeLibPathResolver.cs` corre al inicio de `OnStartup` (antes que cualquier servicio que use Whisper) y copia los 4 DLLs nativos (`whisper.dll`, `ggml-whisper.dll`, `ggml-base-whisper.dll`, `ggml-cpu-whisper.dll`) desde el temp extraction path a `<BaseDirectory>\runtimes\win-x64\`. Después, Whisper.net los encuentra por su path estándar. La copia es idempotente (sobrescribe). **No borrar** este resolver ni cambiar su ubicación — sin él, la app crashea al transcribir en producción.
+- **Single-file: `Assembly.Location` vacío.** En publish single-file, `Assembly.GetExecutingAssembly().Location` devuelve string vacío (el assembly vive en memoria tras self-extract). Usá `AppContext.BaseDirectory` que apunta a la carpeta donde se extrajo el bundle. `EnvService.ResolveEnvPath` lo usa para encontrar `.env`. Si ves un servicio que llama a `Environment.CurrentDirectory` como fallback, también puede dar problemas — `AppContext.BaseDirectory` es la API correcta.
+- **Install path es `%LOCALAPPDATA%\Programs\VoiceTyper\`.** NO uses `C:\Program Files\` ni otro path que requiera elevación (`app.manifest` está en `asInvoker`, sin UAC). `install.bat` y `uninstall.bat` deben ser operables por un usuario sin permisos de admin.
+- **VC++ Redistributable: Whisper.net no lo trae embebido.** El native `whisper.dll` requiere `vcruntime140.dll` + `vcruntime140_1.dll` en `System32`. `VcRedistChecker.IsInstalled()` valida esto al inicio de la app y muestra un balloon no-bloqueante si falta. `install.bat` también chequea antes de publicar. **El `app.manifest asInvoker` no afecta la dependencia de VC++ Redist** — el binario necesita las DLLs del sistema, no manifest elevation.
+- **Smoke test en single-file: ya funciona.** Flag `--smoke-test` instancia `WhisperFactory.FromPath()` y sale con exit code 0 si carga OK, 1 si falla. **No** lo expongas al usuario; es solo para CI / verificación manual post-publish. En dev (`dotnet run -- --smoke-test`) también funciona. Verificá que tras `dotnet publish`, el `.exe` del publish dir corra el smoke test con exit 0 antes de taggear un release.
 - **SendInput debe correr en el UI thread.** `SendInput` desde threadpool hace que apps modernas (WinUI, XAML, algunos Electron) ignoren el input. `TextInjectorService` dispatchea al `Application.Current.Dispatcher` antes de cualquier `SendInput`/`SendMessage`.
 - **Text injection: Unicode SendInput, no WM_PASTE.** Controles WinUI/XAML (Notepad moderno, `RichEditBox` UWP, etc.) tienen paste protection que ignora `WM_PASTE` sintetizado. `SendInputInterop.SendText` con `KEYEVENTF_UNICODE` bypassea eso enviando `WM_UNICHAR` por char. `WM_PASTE` queda solo como fallback en `ClipboardInjector.SendPaste`.
 - **Hook consume flag: reset en `OnHookKeyUp`.** `ConsumeNextKeyDown` se setea en `true` cada 20ms por `HotkeyService.ConsumeLoopAsync` mientras `IsRecording`. Si no se resetea al terminar la grabación, el flag residual se come el primer keydown sintetizado por el `SendInput` post-transcripción y la inyección se rompe silenciosamente. Ver `HotkeyService.OnHookKeyUp:93`.

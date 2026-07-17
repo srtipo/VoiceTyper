@@ -1,7 +1,6 @@
 using System;
 using System.Collections.Generic;
 using System.IO;
-using System.Reflection;
 
 namespace VoiceTyper.Services;
 
@@ -65,8 +64,8 @@ public static class Env
 
     private static string? ResolveEnvPath()
     {
-        var exeDir = Path.GetDirectoryName(Assembly.GetExecutingAssembly().Location);
-        if (exeDir is not null) return Path.Combine(exeDir, EnvFileName);
+        var exeDir = AppContext.BaseDirectory;
+        if (!string.IsNullOrWhiteSpace(exeDir)) return Path.Combine(exeDir, EnvFileName);
 
         var cwd = Directory.GetCurrentDirectory();
         return Path.Combine(cwd, EnvFileName);

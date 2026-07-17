@@ -1,3 +1,4 @@
+using System;
 using System.IO;
 using VoiceTyper.Models;
 using Whisper.net;
@@ -83,5 +84,59 @@ public sealed class TranscriberService : IDisposable
         try { _factory?.Dispose(); } catch { }
         _initLock.Dispose();
         GC.SuppressFinalize(this);
+    }
+
+    public Task<bool> SmokeTestAsync()
+    {
+        return Task.Run(() =>
+        {
+            string? modelPath = null;
+            try
+            {
+                modelPath = FindExistingModel();
+                if (modelPath is null)
+                {
+                    modelPath = CreateDummyModel();
+                }
+
+                using var factory = WhisperFactory.FromPath(modelPath);
+                Log.Info($"[SmokeTest] OK - WhisperFactory loaded from {modelPath}");
+                return true;
+            }
+            catch (DllNotFoundException ex)
+            {
+                Log.Error($"[SmokeTest] FAIL - native libs missing: {ex.Message}");
+                return false;
+            }
+            catch (FileNotFoundException ex)
+            {
+                Log.Error($"[SmokeTest] FAIL - {ex.Message}");
+                return false;
+            }
+            catch (Exception ex)
+            {
+                Log.Error($"[SmokeTest] FAIL - {ex.GetType().Name}: {ex.Message}");
+                return false;
+            }
+        });
+    }
+
+    private string? FindExistingModel()
+    {
+        var dir = _modelManager.ModelDir;
+        if (!Directory.Exists(dir)) return null;
+
+        foreach (var file in Directory.EnumerateFiles(dir, "ggml-*.bin"))
+        {
+            return file;
+        }
+        return null;
+    }
+
+    private string CreateDummyModel()
+    {
+        var path = Path.Combine(Path.GetTempPath(), "vt_smoke_test_model.bin");
+        File.WriteAllBytes(path, new byte[] { 0x00 });
+        return path;
     }
 }

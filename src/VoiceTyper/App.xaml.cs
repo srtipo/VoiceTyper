@@ -27,6 +27,14 @@ public partial class App : Application
     {
         base.OnStartup(e);
 
+        NativeLibPathResolver.EnsureWhisperRuntimeOnPath();
+
+        if (HasCommandLineFlag("--smoke-test"))
+        {
+            _ = RunSmokeTestAsync();
+            return;
+        }
+
         Env.Load();
 
         _singleInstanceMutex = new Mutex(initiallyOwned: true, SingleInstanceMutexName, out var createdNew);
@@ -67,10 +75,65 @@ public partial class App : Application
         _host.Services.GetRequiredService<HotkeyService>();
         _host.Services.GetRequiredService<RecordingOrchestrator>();
 
+        CheckVcRedist();
         WireTrayEvents();
         ApplyStartupSettings();
 
         _ = EnsureModelAndStartAsync();
+    }
+
+    private static bool HasCommandLineFlag(string flag)
+    {
+        var args = Environment.GetCommandLineArgs();
+        foreach (var a in args)
+        {
+            if (string.Equals(a, flag, StringComparison.OrdinalIgnoreCase)) return true;
+        }
+        return false;
+    }
+
+    private async Task RunSmokeTestAsync()
+    {
+        Log.Info("[SmokeTest] starting");
+        bool ok;
+        try
+        {
+            Env.Load();
+            using var host = Host.CreateDefaultBuilder()
+                .ConfigureServices((_, services) =>
+                {
+                    services.AddSingleton<LoggerService>();
+                    services.AddSingleton<SettingsService>();
+                    services.AddHttpClient<ModelManagerService>(c => c.Timeout = TimeSpan.FromMinutes(10));
+                    services.AddSingleton<TranscriberService>();
+                })
+                .Build();
+            var transcriber = host.Services.GetRequiredService<TranscriberService>();
+            ok = await transcriber.SmokeTestAsync().ConfigureAwait(false);
+        }
+        catch (Exception ex)
+        {
+            Log.Error($"[SmokeTest] host setup failed: {ex.Message}");
+            ok = false;
+        }
+
+        Environment.Exit(ok ? 0 : 1);
+    }
+
+    private void CheckVcRedist()
+    {
+        if (_host is null) return;
+        var tray = _host.Services.GetRequiredService<TrayIconService>();
+        if (VcRedistChecker.IsInstalled())
+        {
+            Log.Info("[Startup] VC++ Redistributable OK");
+            return;
+        }
+
+        Log.Error("[Startup] VC++ 2015-2022 Redistributable not found in System32");
+        tray.ShowBalloon(
+            "VoiceTyper — Falta Visual C++ Redistributable",
+            $"Descargá e instalá vcredist desde {VcRedistChecker.GetDownloadUrl()} y reiniciá la app.");
     }
 
     private void ApplyStartupSettings()
