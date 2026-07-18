@@ -423,3 +423,4 @@ No avanzar a la siguiente fase hasta que la actual esté ✅ completa.
 - Soporte para GPU NVIDIA (Whisper.net.Runtime.Gpu).
 - Modo "always listening" con wake word.
 - Temas del tray icon (dark/light).
+- ✅ **Bugfix**: race condition de grabaciones concurrentes que duplicaba el texto en el cursor. `RecordingOrchestrator` ahora serializa con `SemaphoreSlim(1, 1)`. Si el usuario re-engancha la hotkey durante el processing del dictado anterior, el segundo se descarta con balloon `"Esperá a que termine la transcripción anterior"`. Ver gotcha en `AGENTS.md`.
