@@ -14,4 +14,7 @@ public sealed class AppSettings
     public bool PauseOnFullscreen { get; set; } = true;
     public int MicrophoneDeviceIndex { get; set; } = -1;
     public bool RestoreClipboard { get; set; } = true;
+    public bool GpuEnabled { get; set; } = false;
+    public int GpuDeviceIndex { get; set; } = 0;
+    public bool GpuSuggestionShown { get; set; } = false;
 }

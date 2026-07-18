@@ -58,6 +58,7 @@ public partial class App : Application
                 services.AddSingleton<LoggerService>();
                 services.AddSingleton<AutoStartService>();
                 services.AddSingleton<CursorIndicatorService>();
+                services.AddSingleton<CudaDetector>();
                 services.AddHttpClient<ModelManagerService>(c => c.Timeout = TimeSpan.FromMinutes(10));
                 services.AddSingleton<TranscriberService>();
                 services.AddSingleton<TextInjectorService>();
@@ -104,6 +105,7 @@ public partial class App : Application
                 {
                     services.AddSingleton<LoggerService>();
                     services.AddSingleton<SettingsService>();
+                    services.AddSingleton<CudaDetector>();
                     services.AddHttpClient<ModelManagerService>(c => c.Timeout = TimeSpan.FromMinutes(10));
                     services.AddSingleton<TranscriberService>();
                 })
@@ -248,6 +250,7 @@ public partial class App : Application
             hotkey.Start();
             tray.UpdateRetryDownloadVisibility(true);
             Dispatcher.Invoke(() => tray.SetState(RecordingState.Idle));
+            MaybeSuggestGpu();
             return;
         }
 
@@ -301,6 +304,7 @@ public partial class App : Application
             hotkey.Start();
             tray.UpdateRetryDownloadVisibility(true);
             Dispatcher.Invoke(() => tray.SetState(RecordingState.Idle));
+            MaybeSuggestGpu();
         }
         catch (OperationCanceledException)
         {
@@ -325,6 +329,35 @@ public partial class App : Application
                 _downloadCts?.Dispose();
                 _downloadCts = null;
             }
+        }
+    }
+
+    private void MaybeSuggestGpu()
+    {
+        if (_host is null) return;
+
+        try
+        {
+            var settings = _host.Services.GetRequiredService<SettingsService>();
+            var cuda = _host.Services.GetRequiredService<CudaDetector>();
+            var tray = _host.Services.GetRequiredService<TrayIconService>();
+
+            if (settings.Current.GpuEnabled) return;
+            if (settings.Current.GpuSuggestionShown) return;
+            if (!cuda.IsAvailable()) return;
+            if (cuda.GetDeviceCount() <= 0) return;
+
+            Dispatcher.Invoke(() => tray.ShowBalloon(
+                "VoiceTyper — GPU NVIDIA detectada",
+                "Se detectó una GPU NVIDIA. ¿Querés usarla para transcribir más rápido? Click derecho → Configuración → GPU (experimental)."));
+
+            var updated = settings.Current;
+            updated.GpuSuggestionShown = true;
+            settings.Save(updated);
+        }
+        catch (Exception ex)
+        {
+            Log.Warn($"[Startup] MaybeSuggestGpu failed: {ex.Message}");
         }
     }
 

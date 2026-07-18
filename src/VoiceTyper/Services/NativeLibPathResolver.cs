@@ -27,12 +27,60 @@ public static class NativeLibPathResolver
                 File.Copy(src, dst, overwrite: true);
                 copied++;
             }
+
+            var cudaCopied = CopyGpuRuntimes(sourceDir, AppContext.BaseDirectory);
+
             Log.Info($"[NativeLib] copied {copied} native dll(s) from {sourceDir} -> {targetDir}");
+            if (cudaCopied > 0)
+            {
+                Log.Info($"[NativeLib] copied {cudaCopied} GPU runtime dll(s) to <BaseDir>\\runtimes\\<backend>\\win-x64");
+            }
+            else
+            {
+                Log.Info("[NativeLib] no GPU runtime dlls found, CPU-only build");
+            }
         }
         catch (Exception ex)
         {
             Log.Error($"[NativeLib] failed to copy whisper native dir: {ex.Message}");
         }
+    }
+
+    private static int CopyGpuRuntimes(string sourceDir, string baseDir)
+    {
+        var runtimesRoot = Directory.GetParent(sourceDir);
+        if (runtimesRoot is null) return 0;
+
+        var copied = 0;
+        foreach (var sub in Directory.EnumerateDirectories(runtimesRoot.FullName))
+        {
+            var leaf = Path.GetFileName(sub);
+            if (string.Equals(leaf, "win-x64", StringComparison.OrdinalIgnoreCase)) continue;
+
+            foreach (var platformDir in Directory.EnumerateDirectories(sub))
+            {
+                var platformLeaf = Path.GetFileName(platformDir);
+                if (!string.Equals(platformLeaf, "win-x64", StringComparison.OrdinalIgnoreCase)) continue;
+
+                var targetSubdir = Path.Combine(baseDir, "runtimes", leaf, "win-x64");
+                Directory.CreateDirectory(targetSubdir);
+
+                foreach (var src in Directory.EnumerateFiles(platformDir, "*.dll"))
+                {
+                    var dst = Path.Combine(targetSubdir, Path.GetFileName(src));
+                    try
+                    {
+                        File.Copy(src, dst, overwrite: true);
+                        copied++;
+                    }
+                    catch (Exception ex)
+                    {
+                        Log.Warn($"[NativeLib] failed to copy {src}: {ex.Message}");
+                    }
+                }
+            }
+        }
+        return copied;
     }
 
     private static string? ResolveWhisperNativeDir()
@@ -42,18 +90,9 @@ public static class NativeLibPathResolver
         if (!Directory.Exists(extractionRoot)) return null;
 
         var candidates = Directory.EnumerateDirectories(extractionRoot)
-            .Select(dir => new
-            {
-                Dir = dir,
-                Native = Path.Combine(dir, "runtimes", "win-x64", "whisper.dll")
-            })
-            .Where(x => File.Exists(x.Native))
-            .Select(x => new
-            {
-                x.Dir,
-                x.Native,
-                LastWrite = File.GetLastWriteTimeUtc(x.Native)
-            })
+            .Select(dir => Path.Combine(dir, "runtimes", "win-x64", "whisper.dll"))
+            .Where(File.Exists)
+            .Select(p => new { Native = p, LastWrite = File.GetLastWriteTimeUtc(p) })
             .OrderByDescending(x => x.LastWrite)
             .ToList();
 

@@ -135,5 +135,19 @@ public sealed class SettingsService
         {
             s.MicrophoneDeviceIndex = mic;
         }
+
+        var gpuEnv = Env.Get("VT_GPU_ENABLED");
+        if (!string.IsNullOrWhiteSpace(gpuEnv)
+            && bool.TryParse(gpuEnv, out var gpu))
+        {
+            s.GpuEnabled = gpu;
+        }
+
+        var gpuDevEnv = Env.Get("VT_GPU_DEVICE");
+        if (!string.IsNullOrWhiteSpace(gpuDevEnv)
+            && int.TryParse(gpuDevEnv, out var gpuDev))
+        {
+            s.GpuDeviceIndex = gpuDev;
+        }
     }
 }

@@ -22,6 +22,7 @@ App de Windows que escucha tu voz, la transcribe con Whisper (local, sin interne
 - Windows 10 21H2 o superior (64-bit)
 - .NET 8 SDK (sólo para compilar desde el repo — el `.exe` final es self-contained)
 - Visual C++ 2015-2022 Redistributable (verificamos al inicio, ver [Troubleshooting](#troubleshooting))
+- GPU NVIDIA opcional (acelera la transcripción 5-10x, requiere driver reciente)
 
 ## Instalación
 
@@ -76,6 +77,8 @@ Hacé doble-click en `uninstall.bat`. El script:
 | `settings.json` corrupto tras un crash | Apagón durante escritura, etc. | Borrá `%LOCALAPPDATA%\VoiceTyper\settings.json` y reiniciá la app (vuelve a defaults) |
 | El indicador flotante no aparece cerca del cursor | El foco está en una app que no recibe overlays correctamente (raro en Win10+, común en VMs sin aceleración gráfica) | No es un bug — el indicador es puramente visual. La grabación y la transcripción funcionan igual sin él |
 | `VoiceTyper.exe --smoke-test` devuelve exit code 1 | Alguna native lib de Whisper no se cargó (VC++ faltante, o publish mal hecho) | Reinstala VC++ Redist y reintentá. Si persiste, recompilá con `dotnet publish ... -c Release` |
+| Transcripción sigue lenta con GPU activada | El driver NVIDIA es muy viejo o no soporta CUDA | Actualizá desde https://www.nvidia.com/drivers. La app cae automáticamente a CPU. |
+| `VoiceTyper.exe` es más grande que antes (~270 MB) | Ahora incluye el runtime CUDA opcional | Los DLLs de CUDA no se cargan si la GPU no está activada en Configuración |
 
 ## Privacidad
 
@@ -111,12 +114,14 @@ Ver [`.env.example`](./.env.example) para la lista completa y documentada.
 | `VT_MODEL_DIR` | `%LOCALAPPDATA%\VoiceTyper\models` | Carpeta de modelos |
 | `VT_LOG_LEVEL` | `Information` | Nivel de log |
 | `VT_LOG_DIR` | `%LOCALAPPDATA%\VoiceTyper\logs` | Carpeta de logs |
+| `VT_GPU_ENABLED` | `false` | Activar aceleración GPU NVIDIA (experimental) |
+| `VT_GPU_DEVICE` | `0` | Índice de GPU NVIDIA a usar |
 | `VT_OPENAI_API_KEY` | _(vacío)_ | Reservado para futuro |
 | `VT_GROQ_API_KEY` | _(vacío)_ | Reservado para futuro |
 
 ## Cómo funciona
 
-Audio del micrófono → `SendInput` consume Space para no llegar a la app destino → WAV 16 kHz mono en memoria → Whisper local (CPU) → texto plano → `SendInput` con `KEYEVENTF_UNICODE` (bypassea paste protection de WinUI/XAML) → aparece donde está el cursor. Más detalle en [`spec.md`](./spec.md).
+Audio del micrófono → `SendInput` consume Space para no llegar a la app destino → WAV 16 kHz mono en memoria → Whisper local (CPU o GPU NVIDIA opcional) → texto plano → `SendInput` con `KEYEVENTF_UNICODE` (bypassea paste protection de WinUI/XAML) → aparece donde está el cursor. Más detalle en [`spec.md`](./spec.md).
 
 ## Roadmap
 
@@ -125,9 +130,9 @@ Backlog post-MVP. **No hay fechas ni compromiso** — esto es lo que se podría 
 - Streaming de Whisper (transcripción mientras hablás, sin soltar la tecla)
 - Hotkey con spoken punctuation ("coma", "punto", "nueva línea")
 - Múltiples perfiles de hotkey por app
-- Soporte para GPU NVIDIA (Whisper.net.Runtime.Gpu)
 - Modo "always listening" con wake word
 - Temas del tray icon (dark / light)
+- ✅ **Hecho en F8**: Soporte para GPU NVIDIA (`Whisper.net.Runtime.Cuda`)
 
 ## Para contribuidores
 

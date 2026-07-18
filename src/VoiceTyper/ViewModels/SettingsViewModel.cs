@@ -17,6 +17,8 @@ public partial class SettingsViewModel : ObservableObject
     private readonly AutoStartService _autoStart;
     private readonly ModelManagerService _modelManager;
     private readonly HotkeyService _hotkey;
+    private readonly CudaDetector _cudaDetector;
+    private readonly TranscriberService _transcriber;
 
     [ObservableProperty]
     private WhisperModel _selectedModel;
@@ -41,6 +43,15 @@ public partial class SettingsViewModel : ObservableObject
 
     [ObservableProperty]
     private bool _restoreClipboard = true;
+
+    [ObservableProperty]
+    private bool _gpuEnabled;
+
+    [ObservableProperty]
+    private int _gpuDeviceIndex;
+
+    [ObservableProperty]
+    private string _backendMode = "CPU";
 
     [ObservableProperty]
     private string _testHotkeyFeedback = "Sin probar";
@@ -110,18 +121,26 @@ public partial class SettingsViewModel : ObservableObject
         new MicrophoneOption(-1, "Default (sistema)")
     };
 
+    public ObservableCollection<CudaDevice> GpuDeviceOptions { get; } = new();
+
     public bool IsModelDownloaded => _modelManager.IsModelAvailable(SelectedModel);
+
+    public bool HasGpuOptions => GpuDeviceOptions.Count > 0;
 
     public SettingsViewModel(
         SettingsService settings,
         AutoStartService autoStart,
         ModelManagerService modelManager,
-        HotkeyService hotkey)
+        HotkeyService hotkey,
+        CudaDetector cudaDetector,
+        TranscriberService transcriber)
     {
         _settings = settings;
         _autoStart = autoStart;
         _modelManager = modelManager;
         _hotkey = hotkey;
+        _cudaDetector = cudaDetector;
+        _transcriber = transcriber;
 
         var current = settings.Current;
         _selectedModel = current.Model;
@@ -132,8 +151,12 @@ public partial class SettingsViewModel : ObservableObject
         _autoStartEnabled = current.AutoStart;
         _pauseOnFullscreen = current.PauseOnFullscreen;
         _restoreClipboard = current.RestoreClipboard;
+        _gpuEnabled = current.GpuEnabled;
+        _gpuDeviceIndex = current.GpuDeviceIndex;
+        _backendMode = _transcriber.BackendMode;
 
         LoadMicrophoneDevices();
+        LoadGpuDevices();
     }
 
     private void LoadMicrophoneDevices()
@@ -153,6 +176,21 @@ public partial class SettingsViewModel : ObservableObject
         }
     }
 
+    private void LoadGpuDevices()
+    {
+        try
+        {
+            foreach (var device in _cudaDetector.GetDevices())
+            {
+                GpuDeviceOptions.Add(device);
+            }
+        }
+        catch (Exception ex)
+        {
+            Log.Warn($"[SettingsViewModel] failed to enumerate GPUs: {ex.Message}");
+        }
+    }
+
     partial void OnSelectedModelChanged(WhisperModel value)
     {
         OnPropertyChanged(nameof(IsModelDownloaded));
@@ -169,7 +207,9 @@ public partial class SettingsViewModel : ObservableObject
             MicrophoneDeviceIndex = SelectedMicrophoneIndex,
             AutoStart = AutoStartEnabled,
             PauseOnFullscreen = PauseOnFullscreen,
-            RestoreClipboard = RestoreClipboard
+            RestoreClipboard = RestoreClipboard,
+            GpuEnabled = GpuEnabled,
+            GpuDeviceIndex = GpuDeviceIndex
         };
     }
 

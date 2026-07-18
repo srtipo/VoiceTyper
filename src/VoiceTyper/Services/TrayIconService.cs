@@ -13,6 +13,7 @@ public class TrayIconService : IDisposable
 {
     private readonly TaskbarIcon _trayIcon;
     private readonly IServiceProvider _services;
+    private TranscriberService? _transcriber;
     private RecordingState _state = RecordingState.Idle;
     private MenuItem? _statusItem;
     private MenuItem? _modelMenu;
@@ -43,6 +44,21 @@ public class TrayIconService : IDisposable
         _trayIcon.TrayMouseDoubleClick += (_, _) => OpenSettingsRequested?.Invoke();
     }
 
+    private string GetBackendMode()
+    {
+        if (_transcriber is null)
+        {
+            try
+            {
+                _transcriber = _services.GetService(typeof(TranscriberService)) as TranscriberService;
+            }
+            catch
+            {
+            }
+        }
+        return _transcriber?.BackendMode ?? "CPU";
+    }
+
     public void SetState(RecordingState state)
     {
         _state = state;
@@ -57,9 +73,9 @@ public class TrayIconService : IDisposable
         };
         _trayIcon.ToolTipText = state switch
         {
-            RecordingState.Idle => "VoiceTyper — Inactivo (mantener la hotkey para grabar)",
+            RecordingState.Idle => $"VoiceTyper — Inactivo ({GetBackendMode()})",
             RecordingState.Recording => "VoiceTyper — Grabando…",
-            RecordingState.Processing => "VoiceTyper — Procesando…",
+            RecordingState.Processing => $"VoiceTyper — Procesando… ({GetBackendMode()})",
             RecordingState.Error => "VoiceTyper — Error",
             RecordingState.NotReady => "VoiceTyper — Modelo no descargado",
             _ => "VoiceTyper"

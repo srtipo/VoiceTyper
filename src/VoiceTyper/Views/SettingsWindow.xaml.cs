@@ -88,3 +88,19 @@ public sealed class BoolToVisibilityConverter : IValueConverter
         return value is Visibility v && v == Visibility.Visible;
     }
 }
+
+public sealed class InverseBoolToVisibilityConverter : IValueConverter
+{
+    public static readonly InverseBoolToVisibilityConverter Instance = new();
+
+    public object Convert(object value, Type targetType, object parameter, CultureInfo culture)
+    {
+        if (value is bool b && b) return Visibility.Collapsed;
+        return Visibility.Visible;
+    }
+
+    public object ConvertBack(object value, Type targetType, object parameter, CultureInfo culture)
+    {
+        return value is Visibility v && v == Visibility.Collapsed;
+    }
+}

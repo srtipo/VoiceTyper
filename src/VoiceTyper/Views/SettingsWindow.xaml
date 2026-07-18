@@ -128,6 +128,29 @@
                           SelectedValue="{Binding SelectedMicrophoneIndex}"
                           Height="28" />
 
+                <TextBlock Text="GPU (experimental)" Style="{StaticResource SectionHeader}" />
+                <CheckBox Content="Usar GPU NVIDIA si está disponible"
+                          IsChecked="{Binding GpuEnabled}"
+                          IsEnabled="{Binding HasGpuOptions}"
+                          Margin="0,2,0,0" />
+                <ComboBox ItemsSource="{Binding GpuDeviceOptions}"
+                          SelectedValuePath="Index"
+                          DisplayMemberPath="Name"
+                          SelectedValue="{Binding GpuDeviceIndex}"
+                          IsEnabled="{Binding GpuEnabled}"
+                          Visibility="{Binding HasGpuOptions, Converter={x:Static local:BoolToVisibilityConverter.Instance}}"
+                          Height="28" Margin="0,4,0,0" />
+                <TextBlock Text="No se detectó GPU NVIDIA compatible"
+                           Style="{StaticResource FieldHint}"
+                           Margin="0,2,0,0"
+                           Visibility="{Binding HasGpuOptions, Converter={x:Static local:InverseBoolToVisibilityConverter.Instance}}" />
+                <TextBlock Style="{StaticResource FieldHint}"
+                           Margin="0,2,0,0">
+                    <Run Text="Modo activo: " />
+                    <Run Text="{Binding BackendMode, Mode=OneWay}" />
+                    <Run Text=". Si el driver está desactualizado o no hay GPU, se usa CPU automáticamente." />
+                </TextBlock>
+
                 <TextBlock Text="Opciones" Style="{StaticResource SectionHeader}" />
                 <CheckBox Content="Iniciar con Windows"
                           IsChecked="{Binding AutoStartEnabled}"

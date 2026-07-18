@@ -44,6 +44,7 @@ en cualquier campo de texto activo, mediante un atajo global push-to-talk.
 - Idioma default: `es` (español). Configurable: `en`, `pt`, `fr`, `auto`.
 - Sin streaming: se transcribe el audio completo al soltar la tecla.
 - Tiempo objetivo: < 3s para clips de 10s en CPU moderna.
+- Opcionalmente, puede acelerarse usando GPU NVIDIA vía `Whisper.net.Runtime.Cuda`. Se activa desde Configuración → GPU (experimental). Si el driver NVIDIA no está presente o está desactualizado, la app cae automáticamente a CPU sin interrumpir la operación.
 
 ### 5.4 Inserción de texto
 - Método: clipboard + `SendInput` simulando `Ctrl+V`.
@@ -266,6 +267,8 @@ vía `.env` y está excluida del repo.
 | `VT_LOG_LEVEL` | `Information` | Nivel mínimo de log |
 | `VT_LOG_DIR` | `%LOCALAPPDATA%\VoiceTyper\logs` | Carpeta de logs |
 | `VT_WORK_DIR` | _(vacío)_ | Solo para debug |
+| `VT_GPU_ENABLED` | `false` | Activar aceleración GPU NVIDIA (experimental) |
+| `VT_GPU_DEVICE` | `0` | Índice de GPU NVIDIA a usar (0 = primer dispositivo) |
 | `VT_OPENAI_API_KEY` | _(vacío)_ | Reservado para futuro fallback cloud |
 | `VT_GROQ_API_KEY` | _(vacío)_ | Reservado para futuro fallback cloud |
 

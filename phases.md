@@ -420,7 +420,117 @@ No avanzar a la siguiente fase hasta que la actual esté ✅ completa.
 - Hotkey con spoken punctuation ("coma", "punto", "nueva línea").
 - Múltiples perfiles de hotkey por app.
 - Indicator flotante cerca del cursor mientras graba. ✅ **Hecho en F6** (`CursorIndicatorService`).
-- Soporte para GPU NVIDIA (Whisper.net.Runtime.Gpu).
+- Soporte para GPU NVIDIA (Whisper.net.Runtime.Gpu). ✅ **Hecho en F8** (`CudaDetector` + `Whisper.net.Runtime.Cuda`, con fallback transparente a CPU).
 - Modo "always listening" con wake word.
 - Temas del tray icon (dark/light).
 - ✅ **Bugfix**: race condition de grabaciones concurrentes que duplicaba el texto en el cursor. `RecordingOrchestrator` ahora serializa con `SemaphoreSlim(1, 1)`. Si el usuario re-engancha la hotkey durante el processing del dictado anterior, el segundo se descarta con balloon `"Esperá a que termine la transcripción anterior"`. Ver gotcha en `AGENTS.md`.
+
+---
+
+## Fase 8 — Soporte GPU NVIDIA ✅
+**Objetivo:** acelerar la transcripción ~5-10x usando GPU NVIDIA vía
+`Whisper.net.Runtime.Cuda`, con fallback transparente a CPU si no hay
+driver o GPU disponible.
+
+> **Notas de implementación:**
+> - **API de Whisper.net 1.9.0**: la GPU se configura a nivel de
+>   `WhisperFactoryOptions` (no del builder). El builder no expone
+>   `.WithUseGpu()`. Pasamos `new WhisperFactoryOptions { UseGpu = true,
+>   GpuDevice = idx }` a `WhisperFactory.FromPath(path, options)`. El
+>   builder sigue siendo `.WithLanguage().WithGreedySamplingStrategy()`.
+> - **Whisper.net auto-selecciona el runtime**: si está
+>   `Whisper.net.Runtime.Cuda` instalado y hay driver CUDA 13+, lo usa
+>   automáticamente. Si no, cae a CPU. No hay que cargar DLLs de CUDA
+>   manualmente desde nuestro código — Whisper.net lo hace vía su
+>   `NativeLibraryLoader`.
+> - **Single-file + CUDA**: `Whisper.net.Runtime.Cuda.Windows` pone los
+>   DLLs nativos en `runtimes/cuda/win-x64/` (NO en `runtimes/win-x64/`).
+>   El `NativeLibPathResolver` original solo copiaba de `win-x64/`, por
+>   lo que **no copiaba** los DLLs de CUDA. Se extendió el resolver para
+>   iterar sobre todas las subcarpetas de `runtimes/` (excluyendo
+>   `win-x64/` que ya se cubrió) y copiar sus DLLs también. Esto
+>   transparenta el runtime extraído al layout que Whisper.net espera.
+> - **Detección de CUDA propia**: `CudaDetector` hace P/Invoke a
+>   `nvcuda.dll` (driver user-mode de NVIDIA) para `cuDeviceGetCount` y
+>   `cuDeviceGetName`. Esto es independiente de Whisper.net y no requiere
+>   que el runtime CUDA esté cargado — solo verifica que el driver
+>   existe. Si el driver está pero la GPU no es compatible, Whisper.net
+>   fallará al construir el factory y nuestro código cae a CPU.
+> - **Caché de `_loadedGpu`**: agregamos un campo `_loadedGpu` (bool?) al
+>   `TranscriberService` para reconstruir el processor cuando cambia el
+>   modo GPU (no solo cuando cambia modelo o idioma).
+> - **Bundle size**: el `Whisper.net.Runtime.Cuda.Windows` agrega
+>   `ggml-cuda-whisper.dll` (~150 MB comprimidos) al bundle single-file.
+>   El runtime CUDA del sistema (cudart, cublas) NO se embebe — esos
+>   los provee el driver NVIDIA instalado en el sistema. La validación
+>   del driver se hace al construir el factory; si falla, fallback
+>   transparente a CPU.
+> - **No usar `Environment.CurrentDirectory`**: el resolver usa
+>   `AppContext.BaseDirectory` consistentemente (single-file safety).
+> - **Auto-suggestion**: el flag `GpuSuggestionShown` en `AppSettings`
+>   previene spamear al usuario con el balloon de sugerencia. Se setea
+>   en `true` la primera vez que se sugiere, y no se vuelve a mostrar.
+
+### Tareas
+- [x] Agregar `Whisper.net.Runtime.Cuda` 1.9.0 al `.csproj`.
+- [x] Crear `Services/CudaDetector.cs` con P/Invoke a `nvcuda.dll`
+  (`cuDeviceGetCount`, `cuDeviceGetName`).
+- [x] Modelo `CudaDevice` (record `(int Index, string Name)`) en
+  `Models/CudaDetector.cs` (mismo archivo que el service).
+- [x] Settings: agregar `GpuEnabled`, `GpuDeviceIndex`, `GpuSuggestionShown`
+  a `AppSettings`.
+- [x] Settings: parsing de env vars `VT_GPU_ENABLED` y `VT_GPU_DEVICE` en
+  `SettingsService.ApplyEnvOverrides`.
+- [x] `.env.example` documenta `VT_GPU_ENABLED` y `VT_GPU_DEVICE`.
+- [x] `TranscriberService`:
+  - [x] Inyectar `CudaDetector`.
+  - [x] Property `BackendMode` (default `"CPU"`, se actualiza al construir factory).
+  - [x] Construir `WhisperFactoryOptions { UseGpu, GpuDevice }` cuando
+    `GpuEnabled && CudaDetector.IsAvailable() && GetDeviceCount() > 0`.
+  - [x] Validar `GpuDeviceIndex` dentro de rango (clamp a 0 si está
+    fuera).
+  - [x] Try/catch: si GPU init falla, log warn + fallback a CPU.
+  - [x] Campo `_loadedGpu` para cache invalidation cuando cambia el modo.
+  - [x] Log de carga con `backend={BackendMode}`.
+- [x] `NativeLibPathResolver`:
+  - [x] Copia DLLs de subcarpetas adicionales de `runtimes/` (e.g.
+    `runtimes/cuda/win-x64/`) al directorio base.
+  - [x] Logging mejorado: cuenta cuántos DLLs CUDA se copiaron.
+- [x] `SettingsViewModel`:
+  - [x] Props `GpuEnabled`, `GpuDeviceIndex`, `BackendMode`.
+  - [x] `GpuDeviceOptions` (ObservableCollection) populated from
+    `CudaDetector.GetDevices()`.
+  - [x] `BuildSettings()` incluye los nuevos campos.
+  - [x] `HasGpuOptions` para visibility binding.
+- [x] `SettingsWindow.xaml`: sección "GPU (experimental)" con CheckBox,
+  ComboBox de devices (o TextBlock si no hay), y texto mostrando
+  `BackendMode` actual.
+- [x] `App.xaml.cs`:
+  - [x] Registrar `CudaDetector` en DI (singleton) — incluido en el
+    host principal y en el smoke-test host.
+  - [x] `MaybeSuggestGpu()` invocado al final de
+    `EnsureModelAndStartAsync` (ambas ramas). Muestra balloon
+    no-bloqueante y setea `GpuSuggestionShown = true`.
+- [x] `TrayIconService`: tooltip muestra `({BackendMode})` cuando el
+  estado es Idle o Processing.
+- [x] Documentación: `phases.md` (esta sección), `spec.md` (5.3
+  párrafo GPU, 11.3 tabla de env vars), `README.md` (requisitos +
+  troubleshooting), `AGENTS.md` (gotcha "GPU NVIDIA (CUDA)").
+
+### Verificación
+- [ ] `dotnet build VoiceTyper.sln` → **OK 0 warnings** (a verificar en
+  el subagente).
+- [ ] `dotnet run -- --smoke-test` → **exit 0** (a verificar).
+- [ ] `dotnet publish -c Release -r win-x64 --self-contained true` → **OK** (a verificar).
+- [ ] Smoke test del publicado → **exit 0** (a verificar).
+- [ ] Tamaño del `.exe` publicado → **~270 MB** (vs ~71 MB sin CUDA,
+  a verificar).
+- [ ] Smoke test en CPU fallback (driver faltante o roto) → exit 0,
+  BackendMode = "CPU".
+- [ ] En máquina con GPU NVIDIA + driver CUDA 13+ → BackendMode =
+  "GPU:0" después de la primera transcripción, transcripción más rápida.
+- [ ] Auto-suggestion: balloon aparece una vez, no se repite aunque
+  reinicies la app (controlado por `GpuSuggestionShown`).
+- [ ] Cambio de `GpuEnabled` en Settings → rebuild del processor con
+  el modo correcto.
+
