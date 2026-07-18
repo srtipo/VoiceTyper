@@ -63,17 +63,17 @@ public sealed class TranscriberService : IDisposable
         }
 
         var processor = _processor!;
-        var text = string.Empty;
+        var segments = new List<string>();
         await using var ms = new MemoryStream(wavBytes, writable: false);
         await foreach (var segment in processor.ProcessAsync(ms, ct))
         {
             if (string.IsNullOrWhiteSpace(segment.Text)) continue;
             var trimmed = segment.Text.Trim();
             if (trimmed.StartsWith('[') && trimmed.EndsWith(']')) continue;
-            text += trimmed;
+            segments.Add(trimmed);
         }
 
-        return text.Trim();
+        return string.Join(' ', segments);
     }
 
     public void Dispose()
