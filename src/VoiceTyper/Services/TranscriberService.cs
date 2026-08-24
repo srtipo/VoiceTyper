@@ -5,7 +5,7 @@ using Whisper.net;
 
 namespace VoiceTyper.Services;
 
-public sealed class TranscriberService : IDisposable
+public sealed class TranscriberService : IDisposable, ITranscriptionEngine
 {
     private readonly ModelManagerService _modelManager;
     private readonly SettingsService _settings;
@@ -19,6 +19,8 @@ public sealed class TranscriberService : IDisposable
     private string? _loadedLanguage;
     private bool? _loadedGpu;
     private bool _disposed;
+
+    public TranscriptionEngine Engine => TranscriptionEngine.Whisper;
 
     public string BackendMode { get; private set; } = "CPU";
 

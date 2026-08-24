@@ -47,30 +47,74 @@
         <ScrollViewer Grid.Row="1" VerticalScrollBarVisibility="Auto" Margin="0,12,0,0">
             <StackPanel>
 
-                <TextBlock Text="Modelo de Whisper" Style="{StaticResource SectionHeader}" />
-                <Grid Margin="0,4,0,0">
-                    <Grid.ColumnDefinitions>
-                        <ColumnDefinition Width="*" />
-                        <ColumnDefinition Width="Auto" />
-                    </Grid.ColumnDefinitions>
-                    <ComboBox Grid.Column="0"
-                              ItemsSource="{Binding ModelOptions}"
-                              SelectedItem="{Binding SelectedModel}"
-                              Height="28" />
-                    <Button Grid.Column="1"
-                            Content="Descargar"
-                            Command="{Binding DownloadModelCommand}"
-                            Width="100" Height="28"
-                            Margin="8,0,0,0"
-                            IsEnabled="{Binding IsModelDownloaded, Converter={x:Static local:InverseBoolConverter.Instance}, FallbackValue=False}" />
-                </Grid>
-                <TextBlock Text="{Binding DownloadStatus}"
-                           Style="{StaticResource FieldHint}"
-                           Margin="0,4,0,0" />
-                <ProgressBar Minimum="0" Maximum="100"
-                             Value="{Binding DownloadPercent, Mode=OneWay}"
-                             Height="6" Margin="0,4,0,0"
-                             Visibility="{Binding IsModelDownloading, Converter={x:Static local:BoolToVisibilityConverter.Instance}}" />
+                <TextBlock Text="Motor de transcripción" Style="{StaticResource SectionHeader}" />
+                <ComboBox ItemsSource="{Binding EngineOptions}"
+                          DisplayMemberPath="DisplayName"
+                          SelectedValuePath="Engine"
+                          SelectedValue="{Binding SelectedEngine}"
+                          Height="28" />
+
+                <StackPanel Visibility="{Binding IsWhisperEngineSelected, Converter={x:Static local:BoolToVisibilityConverter.Instance}}">
+                    <TextBlock Text="Modelo de Whisper" Style="{StaticResource SectionHeader}" />
+                    <Grid Margin="0,4,0,0">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="*" />
+                            <ColumnDefinition Width="Auto" />
+                        </Grid.ColumnDefinitions>
+                        <ComboBox Grid.Column="0"
+                                  ItemsSource="{Binding ModelOptions}"
+                                  SelectedItem="{Binding SelectedModel}"
+                                  Height="28" />
+                        <Button Grid.Column="1"
+                                Content="Descargar"
+                                Command="{Binding DownloadModelCommand}"
+                                Width="100" Height="28"
+                                Margin="8,0,0,0"
+                                IsEnabled="{Binding IsModelDownloaded, Converter={x:Static local:InverseBoolConverter.Instance}, FallbackValue=False}" />
+                    </Grid>
+                    <TextBlock Text="{Binding DownloadStatus}"
+                               Style="{StaticResource FieldHint}"
+                               Margin="0,4,0,0" />
+                    <ProgressBar Minimum="0" Maximum="100"
+                                 Value="{Binding DownloadPercent, Mode=OneWay}"
+                                 Height="6" Margin="0,4,0,0"
+                                 Visibility="{Binding IsModelDownloading, Converter={x:Static local:BoolToVisibilityConverter.Instance}}" />
+                    <TextBlock Style="{StaticResource FieldHint}"
+                               Margin="0,4,0,0"
+                               Visibility="{Binding IsLargeModelSelected, Converter={x:Static local:BoolToVisibilityConverter.Instance}}">
+                        <Run Text="Modelo grande: ~1.5 GB en disco y ~3 GB de RAM al transcribir. Recomendado solo si tenés espacio y querés máxima precisión." />
+                    </TextBlock>
+                </StackPanel>
+
+                <StackPanel Visibility="{Binding IsWav2Vec2EngineSelected, Converter={x:Static local:BoolToVisibilityConverter.Instance}}">
+                    <TextBlock Text="Modelo de Wav2Vec2" Style="{StaticResource SectionHeader}" />
+                    <Grid Margin="0,4,0,0">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="*" />
+                            <ColumnDefinition Width="Auto" />
+                        </Grid.ColumnDefinitions>
+                        <ComboBox Grid.Column="0"
+                                  ItemsSource="{Binding Wav2Vec2ModelOptions}"
+                                  SelectedItem="{Binding SelectedWav2Vec2Model}"
+                                  Height="28" />
+                        <Button Grid.Column="1"
+                                Content="Descargar"
+                                Command="{Binding DownloadModelCommand}"
+                                Width="100" Height="28"
+                                Margin="8,0,0,0"
+                                IsEnabled="{Binding IsModelDownloaded, Converter={x:Static local:InverseBoolConverter.Instance}, FallbackValue=False}" />
+                    </Grid>
+                    <TextBlock Text="{Binding DownloadStatus}"
+                               Style="{StaticResource FieldHint}"
+                               Margin="0,4,0,0" />
+                    <ProgressBar Minimum="0" Maximum="100"
+                                 Value="{Binding DownloadPercent, Mode=OneWay}"
+                                 Height="6" Margin="0,4,0,0"
+                                 Visibility="{Binding IsModelDownloading, Converter={x:Static local:BoolToVisibilityConverter.Instance}}" />
+                    <TextBlock Style="{StaticResource FieldHint}" Margin="0,4,0,0">
+                        <Run Text="Wav2Vec2 Large-XLSR-53 Spanish (jonatasgrosman, fine-tune Common Voice es), cuantizado int8: ~327 MB. CPU-only. Solo optimizado para español — para en/pt/fr usar Whisper." />
+                    </TextBlock>
+                </StackPanel>
 
                 <TextBlock Text="Idioma" Style="{StaticResource SectionHeader}" />
                 <ComboBox ItemsSource="{Binding LanguageOptions}"

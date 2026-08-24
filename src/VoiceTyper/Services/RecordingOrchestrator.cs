@@ -8,7 +8,7 @@ public sealed class RecordingOrchestrator : IDisposable
     private readonly HotkeyService _hotkey;
     private readonly AudioRecorderService _audio;
     private readonly TrayIconService _tray;
-    private readonly TranscriberService _transcriber;
+    private readonly TranscriptionRouter _transcriber;
     private readonly SettingsService _settings;
     private readonly LoggerService _logger;
     private readonly TextInjectorService _injector;
@@ -20,7 +20,7 @@ public sealed class RecordingOrchestrator : IDisposable
         HotkeyService hotkey,
         AudioRecorderService audio,
         TrayIconService tray,
-        TranscriberService transcriber,
+        TranscriptionRouter transcriber,
         SettingsService settings,
         LoggerService logger,
         TextInjectorService injector,

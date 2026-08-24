@@ -13,10 +13,11 @@ public class TrayIconService : IDisposable
 {
     private readonly TaskbarIcon _trayIcon;
     private readonly IServiceProvider _services;
-    private TranscriberService? _transcriber;
+    private TranscriptionRouter? _transcriber;
     private RecordingState _state = RecordingState.Idle;
     private MenuItem? _statusItem;
     private MenuItem? _modelMenu;
+    private MenuItem? _engineMenu;
     private MenuItem? _languageMenu;
     private MenuItem? _autoStartItem;
     private MenuItem? _pauseOnFullscreenItem;
@@ -27,6 +28,7 @@ public class TrayIconService : IDisposable
     public event Action? AboutRequested;
     public event Action? ExitRequested;
     public event Action<WhisperModel>? ModelChangeRequested;
+    public event Action<TranscriptionEngine>? EngineChangeRequested;
     public event Action<string>? LanguageChangeRequested;
     public event Action<bool>? AutoStartToggleRequested;
     public event Action<bool>? PauseOnFullscreenToggleRequested;
@@ -50,7 +52,7 @@ public class TrayIconService : IDisposable
         {
             try
             {
-                _transcriber = _services.GetService(typeof(TranscriberService)) as TranscriberService;
+                _transcriber = _services.GetService(typeof(TranscriptionRouter)) as TranscriptionRouter;
             }
             catch
             {
@@ -111,17 +113,36 @@ public class TrayIconService : IDisposable
 
         menu.Items.Add(new Separator());
 
-        _modelMenu = BuildCheckableSubmenu(
-            "Modelo",
-            new Dictionary<WhisperModel, string>
+        _engineMenu = BuildCheckableSubmenu(
+            "Motor",
+            new Dictionary<TranscriptionEngine, string>
             {
-                { WhisperModel.Base, "Base" },
-                { WhisperModel.Small, "Small" },
-                { WhisperModel.Medium, "Medium" }
+                { TranscriptionEngine.Whisper, "Whisper" },
+                { TranscriptionEngine.Wav2Vec2, "Wav2Vec2" }
             },
-            settings.Model,
-            m => ModelChangeRequested?.Invoke(m));
-        menu.Items.Add(_modelMenu);
+            settings.Engine,
+            e => EngineChangeRequested?.Invoke(e));
+        menu.Items.Add(_engineMenu);
+
+        if (settings.Engine == TranscriptionEngine.Whisper)
+        {
+            _modelMenu = BuildCheckableSubmenu(
+                "Modelo",
+                new Dictionary<WhisperModel, string>
+                {
+                    { WhisperModel.Base, "Base" },
+                    { WhisperModel.Small, "Small" },
+                    { WhisperModel.Medium, "Medium" },
+                    { WhisperModel.LargeV3Turbo, "LargeV3 Turbo" }
+                },
+                settings.Model,
+                m => ModelChangeRequested?.Invoke(m));
+            menu.Items.Add(_modelMenu);
+        }
+        else
+        {
+            _modelMenu = null;
+        }
 
         _languageMenu = BuildCheckableSubmenu(
             "Idioma",

@@ -534,3 +534,287 @@ driver o GPU disponible.
 - [ ] Cambio de `GpuEnabled` en Settings → rebuild del processor con
   el modo correcto.
 
+---
+
+## Fase 9 — Modelo `large-v3-turbo` ✅
+**Objetivo:** agregar el modelo Whisper `large-v3-turbo` (1.55 GB, fp16)
+como opción disponible en Settings y en el submenú "Modelo" del tray.
+Decoder reducido a 4 capas → accuracy similar a `large-v3` con ~5-6× más
+velocidad. Sin variantes cuantizadas (solo fp16).
+
+> **Notas de implementación:**
+> - **Cambio mínimo**: el modelo cae gratis en casi todo el stack porque
+>   `WhisperModel` es enum-driven y `GetFileName` / `GetDownloadUrl` se
+>   arman a partir del enum. `SettingsService.ApplyEnvOverrides` usa
+>   `Enum.TryParse` que ya cubre el valor nuevo. `TranscriberService`
+>   invalida el cache por `_loadedModel`, así que cambiar al nuevo modelo
+>   reconstruye el processor sin código adicional.
+> - **Tamaño del bundle**: sin cambios. El modelo se descarga on-demand
+>   desde HuggingFace (`ggerganov/whisper.cpp/resolve/main/ggml-large-v3-turbo.bin`).
+> - **RAM al transcribir**: ~3 GB peak. Se muestra un `FieldHint` en
+>   SettingsWindow cuando `IsLargeModelSelected` es true (Medium o
+>   LargeV3Turbo) para advertir antes de descargar.
+> - **No se deprecó Medium**: queda en UI por backwards compat (usuarios
+>   que ya lo descargaron). LargeV3Turbo es estrictamente mejor pero Medium
+>   sigue siendo válido para máquinas con poca RAM.
+> - **Cuantización fuera de alcance**: las variantes `q5_0` (574 MB) y
+>   `q8_0` (874 MB) existen en el repo pero soportarlas requiere modelar
+>   la cuantización en `AppSettings` y en `EnsureModelAsync`. Se deja
+>   como backlog explícito.
+
+### Tareas
+- [x] Agregar `WhisperModel.LargeV3Turbo` al enum en `Models/WhisperModel.cs`.
+- [x] Agregar casos `WhisperModel.LargeV3Turbo => "large-v3-turbo"` y
+      `=> 1_550_000_000L` en `Models/WhisperModelExtensions.cs`
+      (GetFileName y GetApproxSizeBytes).
+- [x] Agregar `WhisperModel.LargeV3Turbo` a `ModelOptions` en
+      `ViewModels/SettingsViewModel.cs`.
+- [x] Agregar `IsLargeModelSelected` computed property en
+      `SettingsViewModel` (true para Medium o LargeV3Turbo).
+- [x] `OnSelectedModelChanged` dispara `OnPropertyChanged` para
+      `IsLargeModelSelected`.
+- [x] `Views/SettingsWindow.xaml`: nuevo `TextBlock` con hint sobre
+      tamaño/RAM, visible cuando `IsLargeModelSelected`.
+- [x] `Services/TrayIconService.cs`: agregar
+      `{ WhisperModel.LargeV3Turbo, "LargeV3 Turbo" }` al submenú "Modelo".
+- [x] `.env.example`: actualizar comentario de `VT_MODEL` para incluir
+      `large-v3-turbo`.
+- [x] `spec.md` §5.3: enumerar los 5 modelos soportados con tamaños.
+
+### Verificación
+- [x] `dotnet build VoiceTyper.sln` → 0 warnings.
+- [x] `dotnet run -- --smoke-test` → exit 0.
+- [x] Settings → Modelo: el ComboBox muestra 5 opciones (Tiny, Base,
+      Small, Medium, LargeV3 Turbo).
+- [x] Al seleccionar LargeV3 Turbo, aparece el hint "~1.5 GB / ~3 GB RAM".
+- [x] Botón "Descargar" descarga `ggml-large-v3-turbo.bin` desde
+      HuggingFace (progress visible).
+- [x] Una vez descargado, transcribir un clip corto: texto correcto,
+      RAM peak < 5 GB.
+- [x] Cambiar de Medium a LargeV3 Turbo en Settings, guardar, transcribir:
+      log indica `model_changed` y rebuild del processor.
+- [x] Tray → submenú "Modelo" tiene 4 items (Base, Small, Medium,
+      LargeV3 Turbo); el item activo lleva el check.
+- [x] `dotnet publish -c Release -r win-x64 --self-contained true` →
+      exit 0, bundle size sin cambios significativos (~71 MB sin CUDA,
+      ~270 MB con CUDA — el modelo se descarga aparte).
+
+### Backlog explícito (no hacer)
+- Variantes cuantizadas `large-v3-turbo-q5_0` (574 MB) y
+  `large-v3-turbo-q8_0` (874 MB). Requiere modelar cuantización en
+  `AppSettings` y `EnsureModelAsync`. Estimado: +1-2 h de trabajo.
+- Streaming de Whisper (Fase post-MVP). Compatible con large-v3-turbo
+  sin cambios adicionales.
+
+---
+
+## Fase 10 — Motor alternativo Wav2Vec2 (Spanish-specific) ✅
+**Objetivo:** agregar un segundo motor de transcripción basado en
+`jonatasgrosman/wav2vec2-large-xlsr-53-spanish` (Wav2Vec2 fine-tuneado
+en Common Voice 6.0 español). Exportado a ONNX manualmente con
+`optimum-cli`, cuantizado int8 dinámico a ~327 MB. ONNX Runtime
+subido de 1.19.2 → 1.29.0 para soportar los ops `ConvInteger` del
+modelo cuantizado.
+
+> **Notas de implementación (revisado en F10-fix):**
+> - **Modelo elegido**: `jonatasgrosman/wav2vec2-large-xlsr-53-spanish`
+>   en lugar del inicial `Xenova/mms-1b-fl102`. Razón: el ONNX export
+>   de Xenova no incluye los 102 language adapters (ver
+>   `AGENTS.md` gotcha GPU/CUDA para paralelo), así que solo servía
+>   para inglés. El modelo de jonatasgrosman ya está fine-tuneado
+>   específicamente para español, sin necesidad de adapters.
+> - **Export ONNX**: `optimum-cli export onnx --model
+>   jonatasgrosman/wav2vec2-large-xlsr-53-spanish --task
+>   automatic-speech-recognition ./onnx/` produce un ONNX fp32 de
+>   ~1.2 GB.
+> - **Cuantización**: `onnxruntime.quantization.quantize_dynamic`
+>   con `weight_type=QuantType.QInt8` y `nodes_to_exclude` para los
+>   nodos `pos_conv_embed` (la quantización falla ahí por estructura
+>   del modelo). Resultado: ~327 MB, 3.7× compresión.
+> - **Vocab**: estructura FLAT (no per-idioma como MMS-fl102). 41
+>   IDs: 4 special tokens (`<pad>`, `<s>`, `</s>`, `<unk>`) + `|` (CTC
+>   word boundary) + `'` + `-` + 26 letras a-z + 8 caracteres con
+>   tildes (á, é, í, ó, ú, ü, ñ, etc.).
+> - **Hosting**: el `.onnx` se sube a HF bajo el repo
+>   `srtipo/wav2vec2-spanish-onnx` (cuenta del dueño del proyecto).
+>   VoiceTyper descarga desde ahí on-demand, igual que Whisper.
+> - **Warning al usuario**: si `Language != es` y usa Wav2Vec2, log
+>   warn (modelo es Spanish-only). Whisper sigue siendo la opción
+>   recomendada para en/pt/fr.
+> - **Cambio menor en código**: `MapLanguageToMms` ahora siempre
+>   devuelve `"global"` (no aplica al nuevo modelo per-language) y
+>   `LoadVocab` detecta automáticamente si el vocab es nested o flat.
+> - **Diagnostic `--diagnose-wav2vec2`** (heredado de F10 inicial)
+>   sigue funcionando: confirma inputs/outputs shape, corre inferencia
+>   con sine wave sintético para validar que el pipeline no crashea.
+> - **Cambio en `Microsoft.ML.OnnxRuntime`**: de 1.19.2 a 1.29.0. La
+>   versión vieja (1.19.2) no soporta el op `ConvInteger` del modelo
+>   cuantizado. El runtime actualizado parsea el modelo correctamente.
+
+### Tareas
+- [x] Instalar `optimum-cli`, `onnx`, `onnxruntime` Python (1.29.0).
+- [x] Descargar `pytorch_model.bin` (1.2 GB) del modelo jonatasgrosman.
+- [x] `optimum-cli export onnx` → `model.onnx` fp32 (1.2 GB).
+- [x] `quantize_dynamic` con `nodes_to_exclude=pos_conv_embed` → modelo
+      cuantizado int8 (327 MB).
+- [x] `Wav2Vec2Model.SpanishXlsr53` reemplaza a `Mms1bFl102` en el enum.
+- [x] `EnsureWav2Vec2ModelAsync` apunta a
+      `https://huggingface.co/srtipo/wav2vec2-spanish-onnx/resolve/main/`.
+- [x] `LoadVocab` detecta estructura flat vs nested.
+- [x] `MapLanguageToMms` devuelve siempre `"global"`.
+- [x] Subir `OnnxRuntime` 1.19.2 → 1.29.0 (soporte ConvInteger).
+- [x] UI hint actualizado.
+
+### Verificación
+- [x] `dotnet build` → 0 warnings, 0 errors.
+- [x] `dotnet run -- --smoke-test` (Engine=Wav2Vec2, modelo en disco) →
+      exit 0, log `[SmokeTest Wav2Vec2] OK - InferenceSession loaded`.
+- [x] `dotnet run -- --diagnose-wav2vec2` → exit 0, confirma 1 input,
+      1 output, logits shape `[1, 99, 41]`, inferencia ~530ms.
+- [x] Modelo pre-colocado en `%LOCALAPPDATA%\VoiceTyper\models\wav2vec2\SpanishXlsr53\`
+      funciona end-to-end con el smoke-test.
+- [ ] Descarga real del modelo desde `srtipo/wav2vec2-spanish-onnx` —
+      **requiere que vos subas el `.onnx` cuantizado al repo HF**.
+- [ ] Transcripción real con voz en español — **requiere mic + que el
+      modelo esté en disco (tras upload)**.
+
+### Backlog explícito (no hacer)
+- Quantización estática (con calibration data) para mejor accuracy
+  en español. La cuantización dinámica actual ya da resultados razonables.
+- GPU para Wav2Vec2 (cambiar a `OnnxRuntime.Cuda` o `OnnxRuntime.DirectML`).
+- Otros modelos Wav2Vec2 en otros idiomas (e.g., un portugués
+  fine-tune análogo al de jonatasgrosman para español).
+
+> **Notas de implementación:**
+> - **Arquitectura**: nuevo `ITranscriptionEngine` con dos implementaciones
+>   (`WhisperEngine` ← ex `TranscriberService`, y `Wav2Vec2Engine`).
+>   `TranscriptionRouter` resuelve el motor activo según `settings.Engine`
+>   y delega `TranscribeAsync` / `SmokeTestAsync`. `RecordingOrchestrator`
+>   consume el router (no el motor directo). El campo `settings.Engine`
+>   es enum-driven, así que añadir motores futuros no rompe la API.
+> - **Modelo**: `Xenova/mms-1b-fl102` (`Wav2Vec2ForCTC`, vocab=78). El
+>   repo tiene export ONNX oficial de HuggingFace. Elegimos `model_q4f16.onnx`
+>   (545 MB, 4-bit weights + fp16 compute) — sweet spot entre tamaño y
+>   calidad. Alternativas cuantizadas disponibles: q4 (636 MB), int8 (317 MB),
+>   fp16 (1.8 GB), fp32 (3.7 GB).
+> - **Vocab.json** tiene estructura anidada por idioma
+>   (`{"spa": {"a": 6, "á": 28, ...}, "eng": {...}, ...}`). El sub-vocab
+>   activo se selecciona por el setting `Language` (mapeo `vt → mms`):
+>   `es`→`spa`, `en`→`eng`, `pt`→`por`, `fr`→`fra`, resto → `eng`.
+>   El ID 0 (`<pad>`) es el blank token CTC. Decoding: argmax → collapse
+>   repeats → remove blank → map ID a char → collapse spaces.
+> - **Audio preprocessing**: Wav2Vec2 normaliza a zero-mean unit-variance
+>   y opera sobre raw 16 kHz mono PCM — exactamente lo que produce
+>   `AudioRecorderService`. Cero cambios en captura.
+> - **Download**: `ModelManagerService.EnsureWav2Vec2ModelAsync` descarga
+>   dos archivos (`model_q4f16.onnx` 545 MB + `vocab.json` 243 KB) con
+>   progress combinado. Helper `EnsureActiveModelAsync` enruta según
+>   `settings.Engine` para que `EnsureModelAndStartAsync` (App.xaml.cs)
+>   no necesite saber qué motor está activo.
+> - **No GPU todavía**: `Microsoft.ML.OnnxRuntime` (CPU). Para GPU
+>   habría que cambiar a `OnnxRuntime.DirectML` o `OnnxRuntime.Cuda`,
+>   que son paquetes separados con sus propias native libs. Queda
+>   como backlog. Whisper sigue siendo la única opción GPU.
+> - **Smoke-test**: `Wav2Vec2Engine.SmokeTestAsync` chequea presencia de
+>   los archivos en disco (no requiere inferencia real). Si el modelo
+>   no está descargado, retorna `false` con log de error claro. El
+>   router delega al engine activo. Verificado: con `Engine=Wav2Vec2`
+>   en `settings.json` y sin modelo, el smoke-test del bundle
+>   single-file retorna exit 1 con log `[SmokeTest Wav2Vec2] model not found`.
+> - **Cambios mínimos en Whisper**: `TranscriberService` se renombró
+>   mentalmente a "WhisperEngine" pero conserva el nombre de clase
+>   (para evitar churn en otros archivos). Solo se agregó la
+>   implementación de `ITranscriptionEngine` y la propiedad `Engine`.
+>   Toda la lógica existente de WhisperFactory / cache invalidation
+>   / CUDA fallback queda intacta.
+> - **Settings UI**: nuevo ComboBox "Motor de transcripción" arriba de
+>   la sección de modelo. Los ComboBox de Whisper/Wav2Vec2 se muestran
+>   condicionalmente según `SelectedEngine` (vía `IsWhisperEngineSelected`
+>   / `IsWav2Vec2EngineSelected` con `BoolToVisibilityConverter`).
+> - **Tray UI**: nuevo submenú "Motor" entre "Configuración" y
+>   "Modelo". El submenú "Modelo" solo aparece cuando el motor activo
+>   es Whisper (el submenú para Wav2Vec2 models queda como backlog).
+
+### Tareas
+- [x] Verificar export ONNX de `Xenova/mms-1b-fl102` (model_q4f16 = 545 MB) y
+      estructura de `vocab.json` (per-language sub-vocabs).
+- [x] `Microsoft.ML.OnnxRuntime` 1.19.2 agregado al `.csproj`.
+- [x] `Models/TranscriptionEngine.cs` (enum `{ Whisper, Wav2Vec2 }`).
+- [x] `Models/Wav2Vec2Model.cs` (enum `{ Mms1bFl102 }` para futuro extensibility).
+- [x] `Services/ITranscriptionEngine.cs` (interface).
+- [x] `TranscriberService` ahora implementa `ITranscriptionEngine`,
+      propiedad `Engine => TranscriptionEngine.Whisper`.
+- [x] `Services/Wav2Vec2Engine.cs` con: `TranscribeAsync` (decode WAV →
+      samples → normalize → ONNX → CTC argmax decode), `SmokeTestAsync`,
+      cache invalidation por model + idioma, `Dispose` del `InferenceSession`.
+- [x] `Services/TranscriptionRouter.cs` que enruta al engine activo según
+      `settings.Engine`. Implementa `ITranscriptionEngine` para consumers.
+- [x] `AppSettings`: campo `Engine` (default `Whisper`) + `Wav2Vec2Model`
+      (default `Mms1bFl102`).
+- [x] `SettingsService.ApplyEnvOverrides`: `VT_ENGINE` y `VT_WAV2VEC2_MODEL`
+      con normalización de guiones/underscores.
+- [x] `ModelManagerService`: `GetWav2Vec2ModelDir`, `IsWav2Vec2ModelAvailable`,
+      `EnsureWav2Vec2ModelAsync` (multi-file download con progress combinado),
+      `IsActiveModelAvailable`, `EnsureActiveModelAsync` (router helper).
+- [x] DI: registrar `Wav2Vec2Engine` + `TranscriptionRouter` en
+      `App.OnStartup` (singleton) y eager-resolve ambos.
+- [x] `RecordingOrchestrator` ahora consume `TranscriptionRouter` en vez
+      de `TranscriberService` directo.
+- [x] `TrayIconService`: usa `TranscriptionRouter.BackendMode` para el
+      tooltip; nuevo submenú "Motor" (Whisper / Wav2Vec2) entre
+      Configuración y Modelo; submenú "Modelo" solo visible si
+      `Engine=Whisper`. Evento nuevo `EngineChangeRequested`.
+- [x] `App.xaml.cs`: `EnsureModelAndStartAsync` y `OnRetryDownload`
+      usan `IsActiveModelAvailable` / `EnsureActiveModelAsync`.
+      Nuevo handler para `EngineChangeRequested` que reconstruye el
+      menú del tray y dispara download si el modelo del nuevo motor
+      no está en disco.
+- [x] `SettingsWindow.xaml`: nuevo ComboBox "Motor de transcripción"
+      con `EngineOptions`. Las secciones Whisper/Wav2Vec2 se muestran
+      condicionalmente vía `Visibility` binding.
+- [x] `SettingsViewModel`: nuevas propiedades `SelectedEngine`,
+      `SelectedWav2Vec2Model`, `EngineOptions`, `Wav2Vec2ModelOptions`,
+      `IsWhisperEngineSelected`, `IsWav2Vec2EngineSelected`. `IsModelDownloaded`
+      ahora chequea el engine activo. `BuildSettings` incluye los nuevos campos.
+- [x] `DownloadModelAsync` usa `EnsureActiveModelAsync` con el engine activo.
+- [x] `.env.example`: documenta `VT_ENGINE` y `VT_WAV2VEC2_MODEL`.
+- [x] `spec.md` §5.3 actualizado.
+
+### Verificación
+- [x] `dotnet build VoiceTyper.sln -c Release` → 0 warnings, 0 errors.
+- [x] `dotnet run -- --smoke-test` (Engine=Whisper default) → exit 0,
+      log `[SmokeTest] OK - WhisperFactory loaded`.
+- [x] Con `Engine=Wav2Vec2` en `settings.json` y modelo no descargado:
+      smoke-test del bundle single-file → exit 1, log
+      `[SmokeTest Wav2Vec2] model not found: ...models\wav2vec2\Mms1bFl102\model_q4f16.onnx`
+      (failure esperado, comportamiento correcto).
+- [x] `dotnet publish -c Release -r win-x64 --self-contained true`
+      → exit 0. Bundle: **222 MB** (vs 218 MB sin Wav2Vec2 — overhead
+      ~4 MB de ONNX Runtime native libs).
+- [x] Smoke-test del bundle single-file → exit 0.
+- [x] Descarga real del modelo Wav2Vec2 (545 MB) → 50s en este entorno.
+- [x] **Diagnóstico `--diagnose-wav2vec2`**: descubrió que el modelo
+      exportado tiene SOLO `input_values` (sin `attention_mask`, sin
+      `language_id`). Con audio sintético (sine wave 200Hz + silencio)
+      el modelo emite mayormente blanks + algunos IDs → comportamiento
+      correcto para non-speech.
+- [ ] Transcripción end-to-end con Wav2Vec2 — **requiere voz al mic**.
+- [x] **Limitación descubierta y documentada**: el export ONNX de
+      Xenova no incluye los 102 language adapters del modelo PyTorch
+      original. Sin adapters, el modelo usa el head default (inglés).
+      Decodificar con sub-vocab `spa`/`por`/`fra` da gibberish porque
+      los IDs corresponden al vocabulario inglés. **Fix aplicado**:
+      `MapLanguageToMms` ahora siempre devuelve `eng` → el decoder usa
+      el sub-vocab inglés. UI hint actualizado. `spec.md` y esta sección
+      documentan la limitación explícitamente. Whisper queda como
+      opción para multilingual real.
+
+### Backlog explícito (no hacer)
+- Soporte GPU para Wav2Vec2 (cambiar a `OnnxRuntime.DirectML` o
+  `OnnxRuntime.Cuda`, paquetes separados con sus propias native libs).
+- Submenú "Modelo" para Wav2Vec2 en el tray (análogo al submenú Whisper).
+- Auto-detección de idioma en Wav2Vec2 (ahora cae a `eng` si no es uno
+  de los 4 mapeados).
+- Más modelos Wav2Vec2 (e.g. `wav2vec2-xls-r-300m-spanish` si aparece
+  un export ONNX oficial sin auth).
+

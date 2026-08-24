@@ -35,6 +35,12 @@ public partial class App : Application
             return;
         }
 
+        if (HasCommandLineFlag("--diagnose-wav2vec2"))
+        {
+            _ = RunWav2Vec2DiagnosticAsync();
+            return;
+        }
+
         Env.Load();
 
         _singleInstanceMutex = new Mutex(initiallyOwned: true, SingleInstanceMutexName, out var createdNew);
@@ -61,6 +67,8 @@ public partial class App : Application
                 services.AddSingleton<CudaDetector>();
                 services.AddHttpClient<ModelManagerService>(c => c.Timeout = TimeSpan.FromMinutes(10));
                 services.AddSingleton<TranscriberService>();
+                services.AddSingleton<Wav2Vec2Engine>();
+                services.AddSingleton<TranscriptionRouter>();
                 services.AddSingleton<TextInjectorService>();
                 services.AddSingleton<RecordingOrchestrator>();
             })
@@ -70,6 +78,8 @@ public partial class App : Application
         _host.Services.GetRequiredService<SettingsService>();
         _host.Services.GetRequiredService<LoggerService>();
         _host.Services.GetRequiredService<TranscriberService>();
+        _host.Services.GetRequiredService<Wav2Vec2Engine>();
+        _host.Services.GetRequiredService<TranscriptionRouter>();
         _host.Services.GetRequiredService<TextInjectorService>();
         _host.Services.GetRequiredService<AutoStartService>();
         _host.Services.GetRequiredService<CursorIndicatorService>();
@@ -108,14 +118,44 @@ public partial class App : Application
                     services.AddSingleton<CudaDetector>();
                     services.AddHttpClient<ModelManagerService>(c => c.Timeout = TimeSpan.FromMinutes(10));
                     services.AddSingleton<TranscriberService>();
+                    services.AddSingleton<Wav2Vec2Engine>();
+                    services.AddSingleton<TranscriptionRouter>();
                 })
                 .Build();
-            var transcriber = host.Services.GetRequiredService<TranscriberService>();
+            var transcriber = host.Services.GetRequiredService<TranscriptionRouter>();
             ok = await transcriber.SmokeTestAsync().ConfigureAwait(false);
         }
         catch (Exception ex)
         {
             Log.Error($"[SmokeTest] host setup failed: {ex.Message}");
+            ok = false;
+        }
+
+        Environment.Exit(ok ? 0 : 1);
+    }
+
+    private async Task RunWav2Vec2DiagnosticAsync()
+    {
+        Log.Info("[diagnose] starting");
+        bool ok;
+        try
+        {
+            Env.Load();
+            using var host = Host.CreateDefaultBuilder()
+                .ConfigureServices((_, services) =>
+                {
+                    services.AddSingleton<LoggerService>();
+                    services.AddSingleton<SettingsService>();
+                    services.AddHttpClient<ModelManagerService>(c => c.Timeout = TimeSpan.FromMinutes(10));
+                    services.AddSingleton<Wav2Vec2Engine>();
+                })
+                .Build();
+            var engine = host.Services.GetRequiredService<Wav2Vec2Engine>();
+            ok = await engine.RunDiagnosticAsync().ConfigureAwait(false);
+        }
+        catch (Exception ex)
+        {
+            Log.Error($"[diagnose] host setup failed: {ex.Message}");
             ok = false;
         }
 
@@ -149,7 +189,7 @@ public partial class App : Application
 
         hotkey.ApplySettings(settings.Current);
         autoStart.SyncTo(settings.Current.AutoStart);
-        tray.BuildContextMenu(settings.Current, modelMgr.IsModelAvailable(settings.Current.Model));
+        tray.BuildContextMenu(settings.Current, modelMgr.IsActiveModelAvailable(settings.Current.Engine, settings.Current.Model, settings.Current.Wav2Vec2Model));
 
         settings.Changed += s =>
         {
@@ -159,7 +199,7 @@ public partial class App : Application
             tray.UpdatePauseOnFullscreenInMenu(s.PauseOnFullscreen);
             tray.UpdateModelInMenu(s.Model);
             tray.UpdateLanguageInMenu(s.Language);
-            tray.UpdateRetryDownloadVisibility(modelMgr.IsModelAvailable(s.Model));
+            tray.UpdateRetryDownloadVisibility(modelMgr.IsActiveModelAvailable(s.Engine, s.Model, s.Wav2Vec2Model));
         };
     }
 
@@ -182,7 +222,19 @@ public partial class App : Application
             var updated = settings.Current;
             updated.Model = m;
             settings.Save(updated);
-            if (!modelMgr.IsModelAvailable(m))
+            if (!modelMgr.IsActiveModelAvailable(updated.Engine, updated.Model, updated.Wav2Vec2Model))
+            {
+                _ = EnsureModelAndStartAsync();
+            }
+        };
+
+        tray.EngineChangeRequested += e =>
+        {
+            var updated = settings.Current;
+            updated.Engine = e;
+            settings.Save(updated);
+            tray.BuildContextMenu(updated, modelMgr.IsActiveModelAvailable(updated.Engine, updated.Model, updated.Wav2Vec2Model));
+            if (!modelMgr.IsActiveModelAvailable(updated.Engine, updated.Model, updated.Wav2Vec2Model))
             {
                 _ = EnsureModelAndStartAsync();
             }
@@ -238,14 +290,17 @@ public partial class App : Application
         var models = _host.Services.GetRequiredService<ModelManagerService>();
         var hotkey = _host.Services.GetRequiredService<HotkeyService>();
 
-        var model = settings.Current.Model;
+        var engine = settings.Current.Engine;
+        var wmodel = settings.Current.Model;
+        var w2model = settings.Current.Wav2Vec2Model;
+        var activeModelLabel = engine == TranscriptionEngine.Wav2Vec2 ? w2model.ToString() : wmodel.ToString();
         var silent = IsSilentMode();
 
         Dispatcher.Invoke(() => tray.SetState(RecordingState.NotReady));
 
-        if (models.IsModelAvailable(model))
+        if (models.IsActiveModelAvailable(engine, wmodel, w2model))
         {
-            Log.Info($"[Startup] model {model} already on disk, skipping download");
+            Log.Info($"[Startup] model {activeModelLabel} ({engine}) already on disk, skipping download");
             hotkey.IsReady = true;
             hotkey.Start();
             tray.UpdateRetryDownloadVisibility(true);
@@ -254,7 +309,7 @@ public partial class App : Application
             return;
         }
 
-        Log.Info($"[Startup] model {model} not on disk, downloading (silent={silent})");
+        Log.Info($"[Startup] model {activeModelLabel} ({engine}) not on disk, downloading (silent={silent})");
 
         CancellationTokenSource cts;
         lock (_downloadLock)
@@ -294,8 +349,8 @@ public partial class App : Application
 
         try
         {
-            await models.EnsureModelAsync(model, progress, cts.Token).ConfigureAwait(false);
-            Log.Info($"[Startup] model {model} downloaded successfully");
+            await models.EnsureActiveModelAsync(engine, wmodel, w2model, progress, cts.Token).ConfigureAwait(false);
+            Log.Info($"[Startup] model {activeModelLabel} ({engine}) downloaded successfully");
 
             Dispatcher.Invoke(() => _downloadWindow?.Close());
             _downloadWindow = null;
@@ -393,7 +448,7 @@ public partial class App : Application
 
         var settings = _host.Services.GetRequiredService<SettingsService>();
         var models = _host.Services.GetRequiredService<ModelManagerService>();
-        if (models.IsModelAvailable(settings.Current.Model))
+        if (models.IsActiveModelAvailable(settings.Current.Engine, settings.Current.Model, settings.Current.Wav2Vec2Model))
         {
             var tray = _host.Services.GetRequiredService<TrayIconService>();
             var hotkey = _host.Services.GetRequiredService<HotkeyService>();

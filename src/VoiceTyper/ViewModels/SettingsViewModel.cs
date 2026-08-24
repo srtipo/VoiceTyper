@@ -18,10 +18,16 @@ public partial class SettingsViewModel : ObservableObject
     private readonly ModelManagerService _modelManager;
     private readonly HotkeyService _hotkey;
     private readonly CudaDetector _cudaDetector;
-    private readonly TranscriberService _transcriber;
+    private readonly TranscriptionRouter _transcriber;
+
+    [ObservableProperty]
+    private TranscriptionEngine _selectedEngine;
 
     [ObservableProperty]
     private WhisperModel _selectedModel;
+
+    [ObservableProperty]
+    private Wav2Vec2Model _selectedWav2Vec2Model;
 
     [ObservableProperty]
     private string _selectedLanguage = "es";
@@ -76,7 +82,19 @@ public partial class SettingsViewModel : ObservableObject
         WhisperModel.Tiny,
         WhisperModel.Base,
         WhisperModel.Small,
-        WhisperModel.Medium
+        WhisperModel.Medium,
+        WhisperModel.LargeV3Turbo
+    };
+
+    public ObservableCollection<Wav2Vec2Model> Wav2Vec2ModelOptions { get; } = new()
+    {
+        Wav2Vec2Model.SpanishXlsr53
+    };
+
+    public ObservableCollection<EngineOption> EngineOptions { get; } = new()
+    {
+        new EngineOption(TranscriptionEngine.Whisper, "Whisper (OpenAI)"),
+        new EngineOption(TranscriptionEngine.Wav2Vec2, "Wav2Vec2 (MMS, Meta)")
     };
 
     public ObservableCollection<LanguageOption> LanguageOptions { get; } = new()
@@ -123,7 +141,17 @@ public partial class SettingsViewModel : ObservableObject
 
     public ObservableCollection<CudaDevice> GpuDeviceOptions { get; } = new();
 
-    public bool IsModelDownloaded => _modelManager.IsModelAvailable(SelectedModel);
+    public bool IsModelDownloaded => SelectedEngine == TranscriptionEngine.Wav2Vec2
+        ? _modelManager.IsWav2Vec2ModelAvailable(SelectedWav2Vec2Model)
+        : _modelManager.IsModelAvailable(SelectedModel);
+
+    public bool IsLargeModelSelected =>
+        SelectedEngine == TranscriptionEngine.Whisper
+        && (SelectedModel == WhisperModel.Medium || SelectedModel == WhisperModel.LargeV3Turbo);
+
+    public bool IsWhisperEngineSelected => SelectedEngine == TranscriptionEngine.Whisper;
+
+    public bool IsWav2Vec2EngineSelected => SelectedEngine == TranscriptionEngine.Wav2Vec2;
 
     public bool HasGpuOptions => GpuDeviceOptions.Count > 0;
 
@@ -133,7 +161,7 @@ public partial class SettingsViewModel : ObservableObject
         ModelManagerService modelManager,
         HotkeyService hotkey,
         CudaDetector cudaDetector,
-        TranscriberService transcriber)
+        TranscriptionRouter transcriber)
     {
         _settings = settings;
         _autoStart = autoStart;
@@ -143,7 +171,9 @@ public partial class SettingsViewModel : ObservableObject
         _transcriber = transcriber;
 
         var current = settings.Current;
+        _selectedEngine = current.Engine;
         _selectedModel = current.Model;
+        _selectedWav2Vec2Model = current.Wav2Vec2Model;
         _selectedLanguage = current.Language;
         _selectedHotkeyModifier = current.HotkeyModifier;
         _selectedHotkeyTrigger = current.HotkeyTrigger;
@@ -194,13 +224,29 @@ public partial class SettingsViewModel : ObservableObject
     partial void OnSelectedModelChanged(WhisperModel value)
     {
         OnPropertyChanged(nameof(IsModelDownloaded));
+        OnPropertyChanged(nameof(IsLargeModelSelected));
+    }
+
+    partial void OnSelectedWav2Vec2ModelChanged(Wav2Vec2Model value)
+    {
+        OnPropertyChanged(nameof(IsModelDownloaded));
+    }
+
+    partial void OnSelectedEngineChanged(TranscriptionEngine value)
+    {
+        OnPropertyChanged(nameof(IsModelDownloaded));
+        OnPropertyChanged(nameof(IsLargeModelSelected));
+        OnPropertyChanged(nameof(IsWhisperEngineSelected));
+        OnPropertyChanged(nameof(IsWav2Vec2EngineSelected));
     }
 
     public AppSettings BuildSettings()
     {
         return new AppSettings
         {
+            Engine = SelectedEngine,
             Model = SelectedModel,
+            Wav2Vec2Model = SelectedWav2Vec2Model,
             Language = SelectedLanguage,
             HotkeyModifier = SelectedHotkeyModifier,
             HotkeyTrigger = SelectedHotkeyTrigger,
@@ -265,7 +311,7 @@ public partial class SettingsViewModel : ObservableObject
 
         try
         {
-            await _modelManager.EnsureModelAsync(SelectedModel, progress, token);
+            await _modelManager.EnsureActiveModelAsync(SelectedEngine, SelectedModel, SelectedWav2Vec2Model, progress, token);
             DownloadStatus = "Modelo descargado";
             DownloadPercent = 100;
             OnPropertyChanged(nameof(IsModelDownloaded));
@@ -313,6 +359,11 @@ public sealed record HotkeyOption(string Name, string DisplayName)
 }
 
 public sealed record MicrophoneOption(int Index, string DisplayName)
+{
+    public override string ToString() => DisplayName;
+}
+
+public sealed record EngineOption(TranscriptionEngine Engine, string DisplayName)
 {
     public override string ToString() => DisplayName;
 }

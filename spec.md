@@ -39,12 +39,13 @@ en cualquier campo de texto activo, mediante un atajo global push-to-talk.
 - Duración máxima: 5 minutos (auto-stop con notificación).
 
 ### 5.3 Transcripción
-- Motor: **Whisper** local vía **Whisper.net** (bindings de whisper.cpp).
-- Modelo default: `ggml-small.bin` (~460 MB), descargable bajo demanda.
+- Motor seleccionable desde Configuración: **Whisper** (default) o **Wav2Vec2 (MMS)**.
+- **Whisper**: bindings de whisper.cpp vía `Whisper.net`. Modelos soportados: `tiny` (~75 MB), `base` (~140 MB), `small` (~460 MB, default), `medium` (~1.5 GB), `large-v3-turbo` (~1.55 GB, máxima calidad y velocidad). GPU NVIDIA opcional vía `Whisper.net.Runtime.Cuda` con fallback transparente a CPU.
+- **Wav2Vec2 (Spanish-specific)**: ONNX Runtime vía `Microsoft.ML.OnnxRuntime`. Modelo: `jonatasgrosman/wav2vec2-large-xlsr-53-spanish` fine-tuneado en Common Voice 6.0 español, exportado a ONNX manualmente y cuantizado int8 dinámico (~327 MB). **Solo optimizado para español** — para en/pt/fr usar Whisper. CPU-only. `Microsoft.ML.OnnxRuntime` se subió de 1.19.2 a 1.29.0 para soportar ops `ConvInteger` del modelo cuantizado.
 - Idioma default: `es` (español). Configurable: `en`, `pt`, `fr`, `auto`.
 - Sin streaming: se transcribe el audio completo al soltar la tecla.
-- Tiempo objetivo: < 3s para clips de 10s en CPU moderna.
-- Opcionalmente, puede acelerarse usando GPU NVIDIA vía `Whisper.net.Runtime.Cuda`. Se activa desde Configuración → GPU (experimental). Si el driver NVIDIA no está presente o está desactualizado, la app cae automáticamente a CPU sin interrumpir la operación.
+- Tiempo objetivo: < 3s para clips de 10s en CPU moderna (Whisper small). Wav2Vec2 en CPU es comparable en latencia.
+- Si el driver NVIDIA no está presente o está desactualizado, la app cae automáticamente a CPU sin interrumpir la operación (aplica solo a Whisper; Wav2Vec2 es siempre CPU en esta versión).
 
 ### 5.4 Inserción de texto
 - Método: clipboard + `SendInput` simulando `Ctrl+V`.

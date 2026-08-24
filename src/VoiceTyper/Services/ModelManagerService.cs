@@ -35,6 +35,36 @@ public sealed class ModelManagerService
 
     public bool IsModelAvailable(WhisperModel m) => File.Exists(GetModelPath(m));
 
+    public string GetWav2Vec2ModelDir(Wav2Vec2Model m) => Path.Combine(ModelDir, "wav2vec2", m.ToString());
+
+    public bool IsWav2Vec2ModelAvailable(Wav2Vec2Model m)
+    {
+        var dir = GetWav2Vec2ModelDir(m);
+        return File.Exists(Path.Combine(dir, "model.onnx"))
+            && File.Exists(Path.Combine(dir, "vocab.json"));
+    }
+
+    public bool IsActiveModelAvailable(VoiceTyper.Models.TranscriptionEngine engine, VoiceTyper.Models.WhisperModel wmodel, VoiceTyper.Models.Wav2Vec2Model w2model)
+        => engine switch
+        {
+            VoiceTyper.Models.TranscriptionEngine.Wav2Vec2 => IsWav2Vec2ModelAvailable(w2model),
+            _ => IsModelAvailable(wmodel)
+        };
+
+    public Task<string> EnsureActiveModelAsync(
+        VoiceTyper.Models.TranscriptionEngine engine,
+        VoiceTyper.Models.WhisperModel wmodel,
+        VoiceTyper.Models.Wav2Vec2Model w2model,
+        IProgress<double>? progress = null,
+        CancellationToken ct = default)
+    {
+        return engine switch
+        {
+            VoiceTyper.Models.TranscriptionEngine.Wav2Vec2 => EnsureWav2Vec2ModelAsync(w2model, progress, ct),
+            _ => EnsureModelAsync(wmodel, progress, ct)
+        };
+    }
+
     public async Task<string> EnsureModelAsync(WhisperModel m, IProgress<double>? progress = null, CancellationToken ct = default)
     {
         var destPath = GetModelPath(m);
@@ -140,5 +170,129 @@ public sealed class ModelManagerService
         }
         Log.Info($"[ModelManager] downloaded {m} -> {destPath} ({downloaded} bytes)");
         return destPath;
+    }
+
+    public async Task<string> EnsureWav2Vec2ModelAsync(
+        Wav2Vec2Model model,
+        IProgress<double>? progress = null,
+        CancellationToken ct = default)
+    {
+        var dir = GetWav2Vec2ModelDir(model);
+        Directory.CreateDirectory(dir);
+
+        var files = new (string Name, string Url, long Size)[]
+        {
+            ("model.onnx", "https://huggingface.co/srtipo/wav2vec2-spanish-onnx/resolve/main/model.onnx", 342_433_945L),
+            ("vocab.json", "https://huggingface.co/srtipo/wav2vec2-spanish-onnx/resolve/main/vocab.json", 508L),
+        };
+
+        long totalSize = files.Sum(f => f.Size);
+        long downloaded = 0;
+
+        foreach (var f in files)
+        {
+            var destPath = Path.Combine(dir, f.Name);
+            if (File.Exists(destPath))
+            {
+                var existing = new FileInfo(destPath).Length;
+                if (existing == f.Size)
+                {
+                    Log.Info($"[ModelManager] Wav2Vec2 {f.Name} already present, skipping");
+                    downloaded += f.Size;
+                    progress?.Report((double)downloaded / totalSize * 100.0);
+                    continue;
+                }
+                Log.Warn($"[ModelManager] Wav2Vec2 {f.Name} size mismatch (existing={existing} expected={f.Size}), re-downloading");
+                try { File.Delete(destPath); } catch { }
+            }
+
+            await DownloadFileAsync(f.Url, destPath, f.Size, downloaded, totalSize, progress, ct).ConfigureAwait(false);
+            downloaded += f.Size;
+            progress?.Report((double)downloaded / totalSize * 100.0);
+        }
+
+        Log.Info($"[ModelManager] Wav2Vec2 {model} ready in {dir}");
+        return dir;
+    }
+
+    private async Task DownloadFileAsync(
+        string url,
+        string destPath,
+        long fileSize,
+        long alreadyDownloaded,
+        long totalSize,
+        IProgress<double>? progress,
+        CancellationToken ct)
+    {
+        var tmpPath = destPath + ".tmp";
+        var existingLength = File.Exists(tmpPath) ? new FileInfo(tmpPath).Length : 0L;
+
+        using var request = new HttpRequestMessage(HttpMethod.Get, url);
+        if (existingLength > 0)
+        {
+            request.Headers.Range = new RangeHeaderValue(existingLength, null);
+        }
+
+        using var response = await _http.SendAsync(request, HttpCompletionOption.ResponseHeadersRead, ct).ConfigureAwait(false);
+
+        if (existingLength > 0 && response.StatusCode != System.Net.HttpStatusCode.PartialContent)
+        {
+            Log.Warn($"[ModelManager] server returned {response.StatusCode}, no resume support, restarting");
+            try { File.Delete(tmpPath); } catch { }
+            existingLength = 0;
+        }
+
+        response.EnsureSuccessStatusCode();
+
+        await using var src = await response.Content.ReadAsStreamAsync(ct).ConfigureAwait(false);
+        var buffer = new byte[BufferSize];
+        long downloaded = existingLength;
+        long lastReported = -1;
+        long lastLogged = -1;
+
+        await using (var dst = new FileStream(tmpPath, FileMode.Append, FileAccess.Write, FileShare.None, BufferSize, useAsync: true))
+        {
+            int bytesRead;
+            while ((bytesRead = await src.ReadAsync(buffer.AsMemory(0, buffer.Length), ct).ConfigureAwait(false)) > 0)
+            {
+                await dst.WriteAsync(buffer.AsMemory(0, bytesRead), ct).ConfigureAwait(false);
+                downloaded += bytesRead;
+
+                if (progress is not null)
+                {
+                    var totalDownloaded = alreadyDownloaded + downloaded;
+                    var pct = totalDownloaded * 100L / totalSize;
+                    if (pct != lastReported)
+                    {
+                        lastReported = pct;
+                        progress.Report((double)totalDownloaded / totalSize * 100.0);
+                    }
+                }
+
+                if (fileSize > 0)
+                {
+                    var pct = downloaded * 100L / fileSize;
+                    if (pct / 10 > lastLogged / 10)
+                    {
+                        lastLogged = pct;
+                        Log.Info($"[ModelManager] Wav2Vec2 {Path.GetFileName(destPath)} {pct}% ({downloaded}/{fileSize} bytes)");
+                    }
+                }
+            }
+        }
+
+        for (var attempt = 1; attempt <= 5; attempt++)
+        {
+            try
+            {
+                File.Move(tmpPath, destPath, overwrite: true);
+                break;
+            }
+            catch (IOException) when (attempt < 5)
+            {
+                Log.Warn($"[ModelManager] move retry {attempt}/5 (file in use)");
+                Thread.Sleep(500);
+            }
+        }
     }
 }

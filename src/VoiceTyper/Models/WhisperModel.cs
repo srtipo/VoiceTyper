@@ -5,5 +5,6 @@ public enum WhisperModel
     Tiny,
     Base,
     Small,
-    Medium
+    Medium,
+    LargeV3Turbo
 }

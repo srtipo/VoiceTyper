@@ -91,10 +91,13 @@ public sealed class SettingsService
     private static void ApplyEnvOverrides(AppSettings s)
     {
         var modelEnv = Env.Get("VT_MODEL");
-        if (!string.IsNullOrWhiteSpace(modelEnv)
-            && Enum.TryParse<WhisperModel>(modelEnv, ignoreCase: true, out var m))
+        if (!string.IsNullOrWhiteSpace(modelEnv))
         {
-            s.Model = m;
+            var normalized = modelEnv.Trim().ToLowerInvariant().Replace("-", "").Replace("_", "");
+            if (Enum.TryParse<WhisperModel>(normalized, ignoreCase: true, out var m))
+            {
+                s.Model = m;
+            }
         }
 
         var langEnv = Env.Get("VT_LANGUAGE");
@@ -148,6 +151,26 @@ public sealed class SettingsService
             && int.TryParse(gpuDevEnv, out var gpuDev))
         {
             s.GpuDeviceIndex = gpuDev;
+        }
+
+        var engineEnv = Env.Get("VT_ENGINE");
+        if (!string.IsNullOrWhiteSpace(engineEnv))
+        {
+            var normalized = engineEnv.Trim().ToLowerInvariant().Replace("-", "").Replace("_", "");
+            if (Enum.TryParse<TranscriptionEngine>(normalized, ignoreCase: true, out var e))
+            {
+                s.Engine = e;
+            }
+        }
+
+        var w2v2Env = Env.Get("VT_WAV2VEC2_MODEL");
+        if (!string.IsNullOrWhiteSpace(w2v2Env))
+        {
+            var normalized = w2v2Env.Trim().ToLowerInvariant().Replace("-", "").Replace("_", "");
+            if (Enum.TryParse<Wav2Vec2Model>(normalized, ignoreCase: true, out var w))
+            {
+                s.Wav2Vec2Model = w;
+            }
         }
     }
 }

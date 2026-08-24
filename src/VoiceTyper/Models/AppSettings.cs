@@ -5,7 +5,13 @@ namespace VoiceTyper.Models;
 public sealed class AppSettings
 {
     [JsonConverter(typeof(JsonStringEnumConverter))]
+    public TranscriptionEngine Engine { get; set; } = TranscriptionEngine.Whisper;
+
+    [JsonConverter(typeof(JsonStringEnumConverter))]
     public WhisperModel Model { get; set; } = WhisperModel.Small;
+
+    [JsonConverter(typeof(JsonStringEnumConverter))]
+    public Wav2Vec2Model Wav2Vec2Model { get; set; } = Wav2Vec2Model.SpanishXlsr53;
 
     public string Language { get; set; } = "es";
     public string HotkeyModifier { get; set; } = "RMenu";

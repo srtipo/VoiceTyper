@@ -8,6 +8,7 @@ public static class WhisperModelExtensions
         WhisperModel.Base => "base",
         WhisperModel.Small => "small",
         WhisperModel.Medium => "medium",
+        WhisperModel.LargeV3Turbo => "large-v3-turbo",
         _ => "small"
     }}.bin";
 
@@ -20,6 +21,7 @@ public static class WhisperModelExtensions
         WhisperModel.Base => 142_000_000L,
         WhisperModel.Small => 466_000_000L,
         WhisperModel.Medium => 1_500_000_000L,
+        WhisperModel.LargeV3Turbo => 1_550_000_000L,
         _ => 466_000_000L
     };
 }
